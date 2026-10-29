@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BC HR &amp; Compliance</title>
+  <meta name="description" content="BC HR & Compliance — practical HR support and employment compliance for growing businesses.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a href="#" class="brand"><span class="logo">BC</span> HR &amp; Compliance</a>
+      <nav>
+        <a href="#services">Services</a>
+        <a href="#process">How we work</a>
+        <a href="#faq">FAQ</a>
+        <a href="#contact" class="btn btn-sm">Contact us</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <p class="eyebrow">HR support · Employment compliance · Workplace policy</p>
+        <h1>Keep your people happy and your business compliant.</h1>
+        <p class="lead">BC HR &amp; Compliance gives growing businesses practical, on-demand HR expertise: from hiring paperwork to workplace investigations, without the cost of a full-time department.</p>
+        <div class="cta-row">
+          <a href="#contact" class="btn">Book a free consultation</a>
+          <a href="#services" class="btn btn-ghost">See our services</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="services" class="section">
+      <div class="wrap">
+        <h2>Services</h2>
+        <p class="section-lead">Pick a single project or keep us on retainer as your outsourced HR team.</p>
+        <div class="grid">
+          <article class="card">
+            <h3>Compliance audits</h3>
+            <p>A full review of your employment practices against current employment standards, human rights, and privacy rules, with a clear action plan.</p>
+          </article>
+          <article class="card">
+            <h3>Policies &amp; handbooks</h3>
+            <p>Employee handbooks, codes of conduct, and required workplace policies written in plain language and kept up to date.</p>
+          </article>
+          <article class="card">
+            <h3>Workplace safety &amp; harassment</h3>
+            <p>Bullying and harassment policies, reporting procedures, and training that meet occupational health and safety requirements.</p>
+          </article>
+          <article class="card">
+            <h3>Hiring &amp; onboarding</h3>
+            <p>Job descriptions, offer letters, employment contracts, and onboarding checklists that start every hire on the right foot.</p>
+          </article>
+          <article class="card">
+            <h3>Investigations</h3>
+            <p>Impartial, documented workplace investigations into complaints, with findings and recommendations you can act on.</p>
+          </article>
+          <article class="card">
+            <h3>HR advisory retainer</h3>
+            <p>Ongoing access to an HR advisor for performance issues, terminations, leaves, and day-to-day people questions.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="process" class="section alt">
+      <div class="wrap">
+        <h2>How we work</h2>
+        <ol class="steps">
+          <li><strong>Free consultation</strong><span>A 30-minute call to understand your team, your risks, and your goals.</span></li>
+          <li><strong>Assessment</strong><span>We review your current documents and practices and flag gaps.</span></li>
+          <li><strong>Action plan</strong><span>A prioritised, fixed-price plan, so you know the cost up front.</span></li>
+          <li><strong>Ongoing support</strong><span>We implement, train your managers, and stay on call as you grow.</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="faq" class="section">
+      <div class="wrap narrow">
+        <h2>Frequently asked questions</h2>
+        <details>
+          <summary>Who do you work with?</summary>
+          <p>Small and mid-sized businesses, typically 5 to 250 employees, that don't yet have a dedicated HR department or need extra support.</p>
+        </details>
+        <details>
+          <summary>Do you provide legal advice?</summary>
+          <p>No. We provide HR and compliance consulting. Where a matter needs legal advice, we'll recommend you speak with an employment lawyer.</p>
+        </details>
+        <details>
+          <summary>How is pricing structured?</summary>
+          <p>Projects are quoted at a fixed price after the assessment. Retainers are a flat monthly fee based on company size.</p>
+        </details>
+        <details>
+          <summary>Can you work remotely?</summary>
+          <p>Yes. Most work is done remotely, with on-site visits available for training and investigations.</p>
+        </details>
+      </div>
+    </section>
+
+    <section id="contact" class="section alt">
+      <div class="wrap narrow">
+        <h2>Contact us</h2>
+        <p class="section-lead">Tell us a little about your business and we'll get back to you within one business day.</p>
+        <!-- Replace YOUR_FORM_ID with your Formspree form ID (see README). -->
+        <form class="contact" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+          <label>Name<input name="name" required autocomplete="name"></label>
+          <label>Email<input name="email" type="email" required autocomplete="email"></label>
+          <label>Company<input name="company" autocomplete="organization"></label>
+          <label>How can we help?<textarea name="message" rows="5" required></textarea></label>
+          <button type="submit" class="btn">Send message</button>
+        </form>
+        <p class="small">Prefer email? <a href="mailto:info@example.com">info@example.com</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <span>© <span id="year"></span> BC HR &amp; Compliance</span>
+      <a href="privacy.html">Privacy policy</a>
+    </div>
+  </footer>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>
