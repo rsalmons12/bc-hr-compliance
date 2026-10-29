@@ -6,10 +6,10 @@ A static website hosted for free on GitHub Pages, served from your own domain.
 - `index.html` is the home page (services, process, FAQ, contact form)
 - `privacy.html` is the privacy policy (a template; review it before relying on it)
 - `styles.css` holds the styling
-- `CNAME` holds your custom domain. **Replace `www.example.com` with your domain.**
+- `CNAME` holds your custom domain. Currently set to `bchrcompliance.cloud`.
 
 ## Before going live
-1. **Domain:** put your domain in `CNAME` (for example `www.bchrcompliance.com`).
+1. **Domain:** put your domain in `CNAME` (currently `bchrcompliance.cloud`).
 2. **Email:** replace `info@example.com` in `index.html` and `privacy.html`.
 3. **Contact form:** create a free form at https://formspree.io, then replace `YOUR_FORM_ID` in `index.html`.
 
@@ -17,7 +17,7 @@ A static website hosted for free on GitHub Pages, served from your own domain.
 1. Create a new repo on GitHub, for example `bc-hr-compliance`.
 2. Push this folder to it:
    ```bash
-   git remote add origin https://github.com/YOUR_USERNAME/bc-hr-compliance.git
+   git remote add origin https://github.com/rsalmons12/bc-hr-compliance.git
    git push -u origin main
    ```
 3. In the repo, go to **Settings → Pages**, then under **Source** choose **Deploy from a branch**, then select `main` and `/ (root)`.
@@ -28,7 +28,7 @@ At your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.), add these recor
 
 | Type  | Name / Host | Value                     |
 |-------|-------------|---------------------------|
-| CNAME | `www`       | `YOUR_USERNAME.github.io` |
+| CNAME | `www`       | `rsalmons12.github.io` |
 | A     | `@`         | `185.199.108.153`         |
 | A     | `@`         | `185.199.109.153`         |
 | A     | `@`         | `185.199.110.153`         |
