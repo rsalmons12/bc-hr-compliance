@@ -1,0 +1,65 @@
+// Supabase Edge Function: invite-user
+// Sends a portal invite email and pre-assigns the person to a company and role.
+// BC HR admins can invite anyone; managers can invite employees to their own company.
+//
+// Deploy: Supabase -> Edge Functions -> Deploy a new function -> Via Editor,
+// name it "invite-user", paste this file, then turn OFF "Verify JWT"
+// (this function checks the caller itself).
+import { createClient } from 'npm:@supabase/supabase-js@2.117.2';
+
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method !== 'POST') return json({ error: 'Use POST' }, 405);
+
+  try {
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    // Who is asking?
+    const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+    const { data: { user }, error: userError } = await admin.auth.getUser(token);
+    if (userError || !user) return json({ error: 'Please sign in again.' }, 401);
+    const { data: me } = await admin.from('profiles').select('role, company_id').eq('id', user.id).single();
+
+    const { email, full_name, company_id, role = 'employee', redirect_to } = await req.json();
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return json({ error: 'Please enter a valid email address.' }, 400);
+    if (!company_id) return json({ error: 'Choose a company.' }, 400);
+    if (!['employee', 'manager'].includes(role)) return json({ error: 'Role must be employee or manager.' }, 400);
+
+    const allowed = me?.role === 'admin'
+      || (me?.role === 'manager' && company_id === me.company_id && role === 'employee');
+    if (!allowed) return json({ error: 'You are not allowed to invite people to this company.' }, 403);
+
+    // Pre-assign company and role. If they already have a login, the database links them now.
+    const { error: inviteRowError } = await admin.from('invites').upsert({
+      email: cleanEmail, company_id, role, full_name: full_name || null, invited_by: user.id,
+    });
+    if (inviteRowError) throw inviteRowError;
+
+    const { error } = await admin.auth.admin.inviteUserByEmail(cleanEmail, {
+      redirectTo: redirect_to,
+      data: { full_name: full_name || null },
+    });
+    if (error) {
+      if (/already been registered|already exists/i.test(error.message)) {
+        return json({ ok: true, existing: true });
+      }
+      return json({ error: error.message }, 400);
+    }
+    return json({ ok: true });
+  } catch (err) {
+    return json({ error: (err as Error).message || String(err) }, 500);
+  }
+});

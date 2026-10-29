@@ -1,25 +1,37 @@
 # BC HR & Compliance client portal
 
-A secure portal at **https://bchrfiles.com** where client companies log in to:
+A secure portal at **https://bchrfiles.com** for BC HR & Compliance and its client companies.
 
-- **Documents**: upload and download HR files, private to each company
-- **Policies**: read policies and sign them off; admins see who has signed
-- **Compliance checklist**: tasks with due dates, with overdue ones highlighted
-- **Complaints & incidents**: confidential reports that only BC HR staff can read
+**Who uses it**
 
-BC HR & Compliance staff (admins) see every client. Client users only ever see their own company.
+| Role | Can do |
+|---|---|
+| **BC HR admin** (you) | Everything, for every client company. Only admins can see full SSNs and bank numbers, and every view is logged. |
+| **Manager** (client company contact) | Invite employees, review and approve onboarding, verify credentials, track expiry dates, publish documents to sign and policies, for their own company only. |
+| **Employee** | Complete onboarding, keep their licenses up to date, sign documents, report concerns. |
 
-**How it works:** GitHub Pages hosts the pages. Supabase handles logins, data and file storage. The security rules in `supabase/schema.sql` run inside the database, so nobody can get around them from the browser.
+**Employee onboarding:** employees are invited by email. On first sign-in they set a password and complete:
+1. Personal details: legal name, date of birth, address, emergency contact
+2. Education: highest level, school, with optional diploma uploads
+3. Licenses and certifications: uploads with numbers and expiry dates
+4. Direct deposit and SSN: encrypted, with the routing number checked
+5. Signing documents (PDFs signed by typed name) and acknowledging policies
+6. Review and submit, after which a manager or admin approves it or requests changes
+
+**Also included:** expiring-credential tracking, company files, a compliance checklist, and confidential complaints.
+
+**How it works:** GitHub Pages hosts the site. Supabase handles logins, data and files. The rules in `supabase/*.sql` run inside the database, so nobody can get around them from the browser.
 
 ## Files
 
 | File | What it is |
 |---|---|
-| `index.html`, `app.js`, `styles.css` | The portal |
-| `config.js` | Your Supabase project URL and publishable key |
-| `supabase/schema.sql` | Database tables and security rules (run once) |
-| `privacy.html` | Privacy policy (a template to review) |
-| `CNAME` | The custom domain (`bchrfiles.com`) |
+| `index.html`, `app.js`, `onboarding.js`, `people.js`, `styles.css` | The portal |
+| `config.js` | Supabase project URL and publishable key |
+| `supabase/schema.sql` | Step 1 database setup |
+| `supabase/002_onboarding.sql` | Step 2 database setup (roles, onboarding, encryption) |
+| `supabase/functions/invite-user/index.ts` | Server function that sends invite emails |
+| `brand/` | Logo files |
 
 ## One-time setup in Supabase
 
@@ -39,23 +51,35 @@ BC HR & Compliance staff (admins) see every client. Client users only ever see t
      ```
    - Sign in at https://bchrfiles.com.
 
+## Upgrade: employee onboarding (run once)
+
+1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**.
+2. **Invite function.**
+   - Go to **Edge Functions → Deploy a new function → Via Editor**.
+   - Name it exactly `invite-user`, replace the sample code with `supabase/functions/invite-user/index.ts`, and click **Deploy**.
+   - Then open the function's **Details / Settings** and turn **off** **Verify JWT**. The function checks who is calling it itself.
+3. **Invite emails.** See "Set up invite emails" below. Without this, invites only reach members of your Supabase team.
+
+## Set up invite emails
+
+Supabase needs your own email sender to send invites and password resets to employees. Resend is free for up to 3,000 emails a month:
+
+1. Sign up at https://resend.com, then go to **Domains → Add domain** and enter `bchrfiles.com`.
+2. Add the DNS records Resend shows you in Cloudflare (**DNS → Records**). Resend can do this for you with its **Sign in to Cloudflare** button.
+3. In Resend, create an **API key**.
+4. In Supabase, go to **Authentication → Emails → SMTP Settings**, turn on **Enable custom SMTP**, and enter:
+   - Sender email: `noreply@bchrfiles.com`, Sender name: `BC HR & Compliance`
+   - Host: `smtp.resend.com`, Port: `465`, Username: `resend`, Password: your Resend API key
+5. Optional: under **Authentication → Emails → Templates → Invite user**, edit the wording of the invite email.
+
 ## Adding a client
 
 1. In the portal, go to **Client companies** and add the company.
-2. Go to **Users → Add a person**. Enter their email, name and company.
-3. In Supabase, go to **Authentication → Users → Add user → Create new user**. Use the same email, a temporary password, and tick **Auto Confirm User**.
-4. Send them the temporary password. They sign in at https://bchrfiles.com and change it under **My account**.
+2. Go to **Users & invites**. Invite the company's contact as a **Manager**.
+3. The manager, or you, then invites their employees. Each employee gets an email, sets a password, and starts onboarding.
+4. Under **Documents to sign**, upload the PDFs every new hire must sign (offer letter, W-4, I-9, handbook acknowledgement…).
 
-They are linked to their company automatically. You can change someone's company or role at any time on the **Users** page.
-
-### Optional: send invite and password-reset emails
-
-Supabase's built-in email only delivers to members of your own Supabase team, so "Forgot password" and **Send invitation** won't reach clients until you add your own email sender. To set one up:
-
-1. Create a free account with an email service such as Resend or Brevo, and verify `bchrfiles.com` with them.
-2. In Supabase, go to **Authentication → Emails → SMTP Settings** and enter the details they give you.
-
-After that you can use **Add user → Send invitation**, and clients can reset their own passwords.
+If invite emails aren't set up yet, you can still create a login by hand. Invite the person in the portal first, so their company and role are saved. Then in Supabase go to **Authentication → Users → Add user → Create new user**, tick **Auto Confirm User**, and send them the temporary password.
 
 ## Domain (already done)
 

@@ -1,6 +1,7 @@
-// BC HR & Compliance client portal.
-// A single-page app: Supabase handles logins, data and files; database security
-// rules (supabase/schema.sql) decide what each person is allowed to see.
+// BC HR & Compliance client portal: core helpers, sign-in, layout and company pages.
+// Employee onboarding lives in onboarding.js; employee management in people.js.
+// Supabase handles logins, data and files; database security rules
+// (supabase/*.sql) decide what each person is allowed to see.
 
 const cfg = window.PORTAL_CONFIG || {};
 const configured = !!cfg.supabaseUrl && !cfg.supabaseUrl.startsWith('YOUR_');
@@ -14,9 +15,11 @@ const sb = configured ? window.supabase.createClient(cfg.supabaseUrl, cfg.supaba
 const state = {
   user: null,
   profile: null,
+  emp: null, // the signed-in employee's onboarding file
   companies: [],
   companyId: null,
   needsPassword: linkType === 'invite' || linkType === 'recovery',
+  redirected: false,
 };
 
 const COMPLAINT_CATEGORIES = [
@@ -29,6 +32,7 @@ const COMPLAINT_CATEGORIES = [
 ];
 const TASK_STATUS = { open: 'Open', in_progress: 'In progress', done: 'Done' };
 const COMPLAINT_STATUS = { new: 'New', reviewing: 'Under review', closed: 'Closed' };
+const ROLE_LABEL = { admin: 'BC HR admin', manager: 'Manager', employee: 'Employee' };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -66,6 +70,11 @@ function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+// Empty form fields become null so dates and numbers save cleanly.
+function nullify(obj) {
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, typeof v === 'string' && v.trim() === '' ? null : v]));
+}
+
 // Disable a form's submit button while an async action runs.
 async function busy(form, action) {
   const button = form.querySelector('button[type="submit"]');
@@ -86,6 +95,10 @@ function fmtDate(value) {
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function fmtDateTime(value) {
+  return value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
+}
+
 function fmtSize(bytes) {
   if (bytes == null) return '';
   if (bytes < 1024) return `${bytes} B`;
@@ -98,9 +111,28 @@ function today() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function daysUntil(date) {
+  if (!date) return null;
+  return Math.round((new Date(`${date}T00:00`) - new Date(`${today()}T00:00`)) / 86400000);
+}
+
+function expiryBadge(date) {
+  const days = daysUntil(date);
+  if (days === null) return '<span class="muted">No expiry</span>';
+  if (days < 0) return badge(`Expired ${fmtDate(date)}`, 'danger');
+  if (days <= 30) return badge(days === 0 ? 'Expires today' : `Expires in ${days} day${days === 1 ? '' : 's'}`, 'danger');
+  if (days <= 90) return badge(`Expires ${fmtDate(date)}`, 'warn');
+  return badge(`Expires ${fmtDate(date)}`, 'neutral');
+}
+
 const isOverdue = (task) => task.status !== 'done' && task.due_date && task.due_date < today();
-const isAdmin = () => state.profile?.role === 'admin';
+const role = () => state.profile?.role;
+const isAdmin = () => role() === 'admin';
+const isManager = () => role() === 'manager';
+const isEmployee = () => role() === 'employee';
+const isStaff = () => isAdmin() || isManager();
 const companyName = (id) => state.companies.find((c) => c.id === id)?.name || '';
+const personName = (p) => p?.full_name || p?.email || 'Unknown';
 
 function badge(text, kind) {
   return `<span class="badge ${kind}">${esc(text)}</span>`;
@@ -122,6 +154,27 @@ function brand() {
   return '<div class="brand"><img class="mark" src="brand/mark.svg" alt=""><span>BC HR &amp; Compliance</span></div>';
 }
 
+function safeName(name) {
+  return name.replace(/[^\w.\-]+/g, '_');
+}
+
+async function openSignedFile(bucket, path, name, download = true) {
+  // Open the tab during the click itself, so pop-up blockers allow it.
+  const tab = download ? null : window.open('', '_blank');
+  try {
+    const { signedUrl } = await q(sb.storage.from(bucket).createSignedUrl(path, 120, download ? { download: name } : undefined));
+    if (tab) {
+      tab.opener = null;
+      tab.location = signedUrl;
+    } else {
+      location.href = signedUrl;
+    }
+  } catch (err) {
+    tab?.close();
+    toast(err.message, 'error');
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Session handling
 // ---------------------------------------------------------------------------
@@ -138,6 +191,10 @@ async function start() {
     setTimeout(() => onSession(session), 0);
   });
   window.addEventListener('hashchange', () => { if (state.profile) renderRoute(); });
+}
+
+async function loadEmp() {
+  state.emp = await q(sb.from('employee_profiles').select('*').eq('user_id', state.user.id).maybeSingle());
 }
 
 async function onSession(session) {
@@ -159,6 +216,7 @@ async function onSession(session) {
       state.companies = await q(sb.from('companies').select('*'));
       state.companyId = state.profile.company_id;
     }
+    if (isEmployee()) await loadEmp();
   } catch (err) {
     renderMessage('Something went wrong', esc(err.message), true);
     return;
@@ -195,14 +253,14 @@ function renderMessage(title, html, withSignOut = false) {
 function renderLogin() {
   authCard(`
     <h1>Sign in</h1>
-    <p class="muted">Access your company's HR documents, policies and compliance tasks.</p>
+    <p class="muted">Access your onboarding, documents and compliance records.</p>
     <form id="login" class="stack">
       <label>Email<input name="email" type="email" required autocomplete="email"></label>
       <label>Password<input name="password" type="password" required autocomplete="current-password"></label>
       <button type="submit" class="btn">Sign in</button>
     </form>
     <button class="link" id="forgot">Forgot your password?</button>
-    <p class="muted small">Accounts are created by BC HR &amp; Compliance. Contact us if you need access.</p>`);
+    <p class="muted small">Accounts are by invitation only. Check your email for an invite, or contact your manager.</p>`);
 
   on(app, '#login', 'submit', (e) => {
     e.preventDefault();
@@ -264,20 +322,28 @@ function renderSetPassword() {
 // Logged-in shell and routing
 // ---------------------------------------------------------------------------
 
+const ALL = ['admin', 'manager', 'employee'];
+const STAFF = ['admin', 'manager'];
 const NAV = [
-  { route: 'dashboard', label: 'Dashboard' },
-  { route: 'documents', label: 'Documents' },
-  { route: 'policies', label: 'Policies' },
-  { route: 'checklist', label: 'Compliance checklist' },
-  { route: 'complaints', label: 'Complaints & incidents' },
-  { route: 'companies', label: 'Client companies', admin: true },
-  { route: 'users', label: 'Users', admin: true },
-  { route: 'account', label: 'My account' },
+  { route: 'dashboard', label: 'Dashboard', roles: ALL },
+  { route: 'onboarding', label: 'My onboarding', roles: ['employee'] },
+  { route: 'credentials', label: 'My licenses & credentials', roles: ['employee'] },
+  { route: 'employees', label: 'Employees', roles: STAFF },
+  { route: 'expiring', label: 'Expiring credentials', roles: STAFF },
+  { route: 'sign', label: 'Documents to sign', roles: ALL },
+  { route: 'policies', label: 'Policies', roles: ALL },
+  { route: 'documents', label: 'Company files', roles: ALL },
+  { route: 'checklist', label: 'Compliance checklist', roles: STAFF },
+  { route: 'complaints', label: 'Complaints & incidents', roles: ALL },
+  { route: 'users', label: 'Users & invites', roles: STAFF },
+  { route: 'companies', label: 'Client companies', roles: ['admin'] },
+  { route: 'account', label: 'My account', roles: ALL },
 ];
 
 function parseRoute() {
   const [route = 'dashboard', id = null] = location.hash.replace(/^#\/?/, '').split('/');
-  return { route: NAV.some((n) => n.route === route) ? route : 'dashboard', id };
+  const allowed = NAV.some((n) => n.route === route && n.roles.includes(role()));
+  return allowed ? { route, id } : { route: 'dashboard', id: null };
 }
 
 function renderApp() {
@@ -291,6 +357,13 @@ function renderApp() {
     return;
   }
 
+  // New employees land on their onboarding until it is submitted.
+  if (isEmployee() && !state.redirected && !['submitted', 'approved'].includes(state.emp?.status)
+      && parseRoute().route === 'dashboard') {
+    history.replaceState(null, '', '#/onboarding');
+  }
+  state.redirected = true;
+
   const companyPicker = isAdmin()
     ? (state.companies.length
       ? `<label class="picker">Client <select id="company">${companyOptions(state.companyId)}</select></label>`
@@ -302,7 +375,7 @@ function renderApp() {
       <aside class="sidebar">
         ${brand()}
         <nav id="nav">
-          ${NAV.filter((n) => !n.admin || isAdmin())
+          ${NAV.filter((n) => n.roles.includes(role()))
             .map((n) => `<a href="#/${n.route}" data-route="${n.route}">${esc(n.label)}</a>`).join('')}
         </nav>
       </aside>
@@ -310,7 +383,8 @@ function renderApp() {
         <header class="topbar">
           <div>${companyPicker}</div>
           <div class="who">
-            <span class="muted">${esc(state.profile.full_name || state.profile.email)}${isAdmin() ? ' ' + badge('Admin', 'info') : ''}</span>
+            <span class="muted">${esc(personName(state.profile))}</span>
+            ${badge(ROLE_LABEL[role()], isAdmin() ? 'info' : 'neutral')}
             <button class="btn btn-ghost btn-sm" id="signout">Sign out</button>
           </div>
         </header>
@@ -319,11 +393,15 @@ function renderApp() {
     </div>`;
 
   on(app, '#signout', 'click', signOut);
-  on(app, '#company', 'change', (e) => {
-    state.companyId = e.target.value;
-    localStorage.setItem('bc.companyId', state.companyId);
-    renderRoute();
-  });
+  on(app, '#company', 'change', (e) => selectCompany(e.target.value));
+  renderRoute();
+}
+
+function selectCompany(id) {
+  state.companyId = id;
+  localStorage.setItem('bc.companyId', id);
+  const picker = document.getElementById('company');
+  if (picker) picker.value = id;
   renderRoute();
 }
 
@@ -340,6 +418,7 @@ async function renderRoute() {
   } catch (err) {
     view.innerHTML = `<div class="card error">Could not load this page: ${esc(err.message)}</div>`;
   }
+  window.scrollTo(0, 0);
 }
 
 // Admin pages that work on one client need a company to be selected.
@@ -354,87 +433,57 @@ function pageHead(title, subtitle = '') {
   return `<div class="page-head"><h1>${esc(title)}</h1>${subtitle ? `<p class="muted">${subtitle}</p>` : ''}</div>`;
 }
 
-// ---------------------------------------------------------------------------
-// Dashboard
-// ---------------------------------------------------------------------------
-
-VIEWS.dashboard = async (view) => {
-  if (isAdmin()) return adminDashboard(view);
-  const c = state.companyId;
-  const [policies, acks, tasks, docs, complaints] = await Promise.all([
-    q(sb.from('policies').select('id, title').eq('company_id', c).order('created_at', { ascending: false })),
-    q(sb.from('policy_acknowledgements').select('policy_id').eq('user_id', state.user.id)),
-    q(sb.from('tasks').select('*').eq('company_id', c).order('due_date', { nullsFirst: false })),
-    q(sb.from('documents').select('id').eq('company_id', c)),
-    q(sb.from('complaints').select('id, status').eq('submitted_by', state.user.id)),
-  ]);
-  const acked = new Set(acks.map((a) => a.policy_id));
-  const toSign = policies.filter((p) => !acked.has(p.id));
-  const openTasks = tasks.filter((t) => t.status !== 'done');
-  const overdue = openTasks.filter(isOverdue);
-
-  view.innerHTML = `
-    ${pageHead(`Welcome${state.profile.full_name ? ', ' + state.profile.full_name.split(' ')[0] : ''}`, esc(companyName(c)))}
-    <div class="stats">
-      ${stat('Policies to sign', toSign.length, '#/policies', toSign.length ? 'warn' : '')}
-      ${stat('Open tasks', openTasks.length, '#/checklist')}
-      ${stat('Overdue tasks', overdue.length, '#/checklist', overdue.length ? 'danger' : '')}
-      ${stat('Documents', docs.length, '#/documents')}
-      ${stat('My open reports', complaints.filter((x) => x.status !== 'closed').length, '#/complaints')}
-    </div>
-    <div class="grid2">
-      <section class="card">
-        <h2>Policies waiting for you</h2>
-        ${toSign.length
-          ? `<ul class="list">${toSign.map((p) => `<li><a href="#/policies/${p.id}">${esc(p.title)}</a></li>`).join('')}</ul>`
-          : '<p class="muted">You are up to date. 🎉</p>'}
-      </section>
-      <section class="card">
-        <h2>Upcoming tasks</h2>
-        ${openTasks.length
-          ? `<ul class="list">${openTasks.slice(0, 6).map((t) => `<li><span>${esc(t.title)}</span>
-              ${t.due_date ? badge(fmtDate(t.due_date), isOverdue(t) ? 'danger' : 'neutral') : ''}</li>`).join('')}</ul>`
-          : '<p class="muted">No open tasks.</p>'}
-      </section>
-    </div>`;
-};
-
 function stat(label, value, href, kind = '') {
   return `<a class="stat ${kind}" href="${href}"><span class="stat-value">${value}</span><span class="stat-label">${esc(label)}</span></a>`;
 }
 
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+
+VIEWS.dashboard = (view) => {
+  if (isAdmin()) return adminDashboard(view);
+  if (isManager()) return managerDashboard(view);
+  return employeeDashboard(view);
+};
+
 async function adminDashboard(view) {
-  const [tasks, complaints, docs, profiles] = await Promise.all([
+  const soon = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const [tasks, complaints, files, profiles, expiring] = await Promise.all([
     q(sb.from('tasks').select('company_id, status, due_date')),
     q(sb.from('complaints').select('company_id, status')),
-    q(sb.from('documents').select('company_id')),
-    q(sb.from('profiles').select('company_id')),
+    q(sb.from('employee_profiles').select('company_id, status')),
+    q(sb.from('profiles').select('company_id, role')),
+    q(sb.from('credentials').select('company_id, expiry_date').lte('expiry_date', soon)),
   ]);
   const count = (rows, id, test = () => true) => rows.filter((r) => r.company_id === id && test(r)).length;
-  const newComplaints = complaints.filter((c) => c.status === 'new').length;
-  const overdue = tasks.filter(isOverdue).length;
+  const toReview = (r) => r.status === 'submitted';
+  const isNew = (c) => c.status === 'new';
+  const people = profiles.filter((p) => p.role !== 'admin');
+  const cell = (n, kind) => (n ? badge(n, kind) : 0);
 
   view.innerHTML = `
     ${pageHead('Overview', 'All client companies at a glance.')}
     <div class="stats">
       ${stat('Client companies', state.companies.length, '#/companies')}
-      ${stat('New complaints', newComplaints, '#/complaints', newComplaints ? 'warn' : '')}
-      ${stat('Overdue tasks', overdue, '#/checklist', overdue ? 'danger' : '')}
-      ${stat('Users', profiles.length, '#/users')}
+      ${stat('People', people.length, '#/users')}
+      ${stat('Onboarding to review', files.filter(toReview).length, '#/employees', files.some(toReview) ? 'warn' : '')}
+      ${stat('Credentials expiring ≤ 30 days', expiring.length, '#/expiring', expiring.length ? 'danger' : '')}
+      ${stat('New complaints', complaints.filter(isNew).length, '#/complaints', complaints.some(isNew) ? 'warn' : '')}
     </div>
     <section class="card">
       <h2>Clients</h2>
       ${state.companies.length ? `
       <div class="table-wrap"><table>
-        <thead><tr><th>Company</th><th>Users</th><th>Open tasks</th><th>Overdue</th><th>New complaints</th><th>Documents</th></tr></thead>
+        <thead><tr><th>Company</th><th>People</th><th>Onboarding to review</th><th>Expiring ≤ 30 days</th><th>Overdue tasks</th><th>New complaints</th></tr></thead>
         <tbody>${state.companies.map((c) => `
           <tr class="clickable" data-company="${c.id}">
             <td><strong>${esc(c.name)}</strong></td>
-            <td>${count(profiles, c.id)}</td>
-            <td>${count(tasks, c.id, (t) => t.status !== 'done')}</td>
-            <td>${count(tasks, c.id, isOverdue) ? badge(count(tasks, c.id, isOverdue), 'danger') : 0}</td>
-            <td>${count(complaints, c.id, (x) => x.status === 'new') ? badge(count(complaints, c.id, (x) => x.status === 'new'), 'warn') : 0}</td>
-            <td>${count(docs, c.id)}</td>
+            <td>${count(people, c.id)}</td>
+            <td>${cell(count(files, c.id, toReview), 'warn')}</td>
+            <td>${cell(count(expiring, c.id), 'danger')}</td>
+            <td>${cell(count(tasks, c.id, isOverdue), 'danger')}</td>
+            <td>${cell(count(complaints, c.id, isNew), 'warn')}</td>
           </tr>`).join('')}
         </tbody>
       </table></div>` : '<p class="muted">No clients yet. <a href="#/companies">Add your first client company</a>.</p>'}
@@ -444,12 +493,12 @@ async function adminDashboard(view) {
     state.companyId = e.currentTarget.dataset.company;
     localStorage.setItem('bc.companyId', state.companyId);
     document.getElementById('company').value = state.companyId;
-    location.hash = '#/checklist';
+    location.hash = '#/employees';
   });
 }
 
 // ---------------------------------------------------------------------------
-// Documents
+// Company files
 // ---------------------------------------------------------------------------
 
 VIEWS.documents = async (view) => {
@@ -458,11 +507,12 @@ VIEWS.documents = async (view) => {
   const docs = await q(sb.from('documents').select('*').eq('company_id', c).order('created_at', { ascending: false }));
 
   view.innerHTML = `
-    ${pageHead('Documents', 'Files are private to your company and BC HR &amp; Compliance.')}
+    ${pageHead('Company files', 'Handbooks, forms and other files shared with everyone at your company.')}
+    ${isStaff() ? `
     <form id="upload" class="card inline-form">
       <input type="file" name="file" required multiple>
       <button type="submit" class="btn">Upload</button>
-    </form>
+    </form>` : ''}
     <section class="card">
       ${docs.length ? `
       <div class="table-wrap"><table>
@@ -474,11 +524,11 @@ VIEWS.documents = async (view) => {
             <td class="muted">${fmtDate(d.created_at)}</td>
             <td class="actions">
               <button class="btn btn-sm btn-ghost" data-download="${d.id}">Download</button>
-              ${isAdmin() ? `<button class="btn btn-sm btn-danger" data-delete="${d.id}">Delete</button>` : ''}
+              ${isStaff() ? `<button class="btn btn-sm btn-danger" data-delete="${d.id}">Delete</button>` : ''}
             </td>
           </tr>`).join('')}
         </tbody>
-      </table></div>` : '<p class="muted">No documents yet.</p>'}
+      </table></div>` : '<p class="muted">No files yet.</p>'}
     </section>`;
 
   const byId = (id) => docs.find((d) => d.id === id);
@@ -488,8 +538,7 @@ VIEWS.documents = async (view) => {
     const files = [...e.target.file.files];
     busy(e.target, async () => {
       for (const file of files) {
-        const safe = file.name.replace(/[^\w.\-]+/g, '_');
-        const path = `${c}/${crypto.randomUUID()}-${safe}`;
+        const path = `${c}/${crypto.randomUUID()}-${safeName(file.name)}`;
         await q(sb.storage.from('documents').upload(path, file));
         const { error } = await sb.from('documents').insert({ company_id: c, name: file.name, path, size: file.size });
         if (error) {
@@ -502,14 +551,9 @@ VIEWS.documents = async (view) => {
     });
   });
 
-  on(view, '[data-download]', 'click', async (e) => {
+  on(view, '[data-download]', 'click', (e) => {
     const doc = byId(e.currentTarget.dataset.download);
-    try {
-      const { signedUrl } = await q(sb.storage.from('documents').createSignedUrl(doc.path, 60, { download: doc.name }));
-      location.href = signedUrl;
-    } catch (err) {
-      toast(err.message, 'error');
-    }
+    openSignedFile('documents', doc.path, doc.name);
   });
 
   on(view, '[data-delete]', 'click', async (e) => {
@@ -518,7 +562,7 @@ VIEWS.documents = async (view) => {
     try {
       await q(sb.storage.from('documents').remove([doc.path]));
       await q(sb.from('documents').delete().eq('id', doc.id));
-      toast('Document deleted.');
+      toast('File deleted.');
       renderRoute();
     } catch (err) {
       toast(err.message, 'error');
@@ -527,29 +571,25 @@ VIEWS.documents = async (view) => {
 };
 
 // ---------------------------------------------------------------------------
-// Policies and sign-off
+// Policies and acknowledgement
 // ---------------------------------------------------------------------------
 
 VIEWS.policies = async (view, id) => {
   if (id) return policyDetail(view, id);
   if (needsCompany(view)) return;
   const c = state.companyId;
-  const [policies, acks] = await Promise.all([
+  const [policies, acks, people] = await Promise.all([
     q(sb.from('policies').select('*').eq('company_id', c).order('created_at', { ascending: false })),
-    isAdmin()
+    isStaff()
       ? q(sb.from('policy_acknowledgements').select('policy_id'))
       : q(sb.from('policy_acknowledgements').select('policy_id').eq('user_id', state.user.id)),
+    isStaff() ? q(sb.from('profiles').select('id').eq('company_id', c).neq('role', 'admin')) : [],
   ]);
   const ackCount = (pid) => acks.filter((a) => a.policy_id === pid).length;
 
-  let people = 0;
-  if (isAdmin()) {
-    people = (await q(sb.from('profiles').select('id').eq('company_id', c).eq('role', 'client'))).length;
-  }
-
   view.innerHTML = `
-    ${pageHead('Policies', isAdmin() ? 'Publish policies and track who has signed them.' : 'Read each policy and confirm you have understood it.')}
-    ${isAdmin() ? `
+    ${pageHead('Policies', isStaff() ? 'Publish policies and track who has acknowledged them.' : 'Read each policy and confirm you have understood it.')}
+    ${isStaff() ? `
     <details class="card">
       <summary class="btn">+ New policy</summary>
       <form id="new-policy" class="stack">
@@ -562,9 +602,9 @@ VIEWS.policies = async (view, id) => {
       ${policies.length ? `<ul class="list">${policies.map((p) => `
         <li>
           <a href="#/policies/${p.id}">${esc(p.title)}</a>
-          ${isAdmin()
-            ? badge(`${ackCount(p.id)} of ${people} signed`, ackCount(p.id) >= people && people ? 'ok' : 'neutral')
-            : (ackCount(p.id) ? badge('Signed', 'ok') : badge('Needs signature', 'warn'))}
+          ${isStaff()
+            ? badge(`${ackCount(p.id)} of ${people.length} acknowledged`, ackCount(p.id) >= people.length && people.length ? 'ok' : 'neutral')
+            : (ackCount(p.id) ? badge('Acknowledged', 'ok') : badge('Needs acknowledgement', 'warn'))}
         </li>`).join('')}</ul>` : '<p class="muted">No policies yet.</p>'}
     </section>`;
 
@@ -585,32 +625,32 @@ async function policyDetail(view, id) {
   const mine = acks.find((a) => a.user_id === state.user.id);
 
   let signoff = '';
-  if (isAdmin()) {
+  if (isStaff()) {
     const people = await q(sb.from('profiles').select('id, email, full_name')
-      .eq('company_id', policy.company_id).eq('role', 'client').order('email'));
+      .eq('company_id', policy.company_id).neq('role', 'admin').order('email'));
     signoff = `
       <section class="card">
-        <h2>Sign-off</h2>
+        <h2>Acknowledgements</h2>
         ${people.length ? `<div class="table-wrap"><table>
           <thead><tr><th>Person</th><th>Status</th></tr></thead>
           <tbody>${people.map((p) => {
             const ack = acks.find((a) => a.user_id === p.id);
-            return `<tr><td>${esc(p.full_name || p.email)}<div class="muted small">${esc(p.email)}</div></td>
-              <td>${ack ? badge(`Signed ${fmtDate(ack.acknowledged_at)}`, 'ok') : badge('Not yet', 'warn')}</td></tr>`;
+            return `<tr><td>${esc(personName(p))}<div class="muted small">${esc(p.email)}</div></td>
+              <td>${ack ? badge(`Acknowledged ${fmtDate(ack.acknowledged_at)}`, 'ok') : badge('Not yet', 'warn')}</td></tr>`;
           }).join('')}</tbody>
-        </table></div>` : '<p class="muted">No users at this company yet.</p>'}
+        </table></div>` : '<p class="muted">No people at this company yet.</p>'}
         <button class="btn btn-danger btn-sm" id="delete-policy">Delete policy</button>
       </section>`;
   }
 
   view.innerHTML = `
-    <a href="#/policies" class="back">← All policies</a>
+    <a href="${isStaff() ? '#/policies' : '#/sign'}" class="back">← Back</a>
     ${pageHead(policy.title, `Published ${fmtDate(policy.created_at)}`)}
     <article class="card policy-body">${esc(policy.body)}</article>
-    ${isAdmin() ? signoff : `
+    ${isStaff() ? signoff : `
       <section class="card ack">
         ${mine
-          ? `${badge('Signed', 'ok')} You acknowledged this policy on ${fmtDate(mine.acknowledged_at)}.`
+          ? `${badge('Acknowledged', 'ok')} You acknowledged this policy on ${fmtDate(mine.acknowledged_at)}.`
           : `<p>By clicking below you confirm you have read and understood this policy.</p>
              <button class="btn" id="ack">I have read and acknowledge this policy</button>`}
       </section>`}`;
@@ -628,7 +668,7 @@ async function policyDetail(view, id) {
   });
 
   on(view, '#delete-policy', 'click', async () => {
-    if (!confirm('Delete this policy and all its signatures?')) return;
+    if (!confirm('Delete this policy and all its acknowledgements?')) return;
     try {
       await q(sb.from('policies').delete().eq('id', id));
       toast('Policy deleted.');
@@ -719,7 +759,7 @@ VIEWS.complaints = async (view, id) => {
 
   const mine = await q(sb.from('complaints').select('*').eq('submitted_by', state.user.id).order('created_at', { ascending: false }));
   view.innerHTML = `
-    ${pageHead('Complaints & incidents', 'Reports go confidentially to BC HR &amp; Compliance. Other people at your company cannot see them.')}
+    ${pageHead('Complaints & incidents', 'Reports go confidentially to BC HR &amp; Compliance. Your manager and co-workers cannot see them.')}
     <section class="card">
       <h2>Report a concern</h2>
       <form id="new-complaint" class="stack">
@@ -773,7 +813,7 @@ async function adminComplaints(view) {
             <td class="muted">${fmtDate(x.created_at)}</td>
             <td><strong>${esc(x.subject)}</strong></td>
             <td>${esc(x.category)}</td>
-            <td>${esc(x.profiles?.full_name || x.profiles?.email || 'Deleted user')}</td>
+            <td>${esc(x.profiles ? personName(x.profiles) : 'Deleted user')}</td>
             <td>${complaintBadge(x.status)}</td>
           </tr>`).join('')}
         </tbody>
@@ -826,9 +866,8 @@ async function reloadCompanies() {
 }
 
 VIEWS.companies = async (view) => {
-  if (!isAdmin()) return VIEWS.dashboard(view);
   view.innerHTML = `
-    ${pageHead('Client companies', 'Each company only ever sees its own documents, policies and tasks.')}
+    ${pageHead('Client companies', 'Each company only ever sees its own people, files and records.')}
     <form id="new-company" class="card inline-form">
       <input name="name" required placeholder="Company name">
       <button type="submit" class="btn">Add company</button>
@@ -855,108 +894,19 @@ VIEWS.companies = async (view) => {
 
   on(view, '[data-delete]', 'click', async (e) => {
     const c = state.companies.find((x) => x.id === e.currentTarget.dataset.delete);
-    const typed = prompt(`This permanently deletes ${c.name} and ALL its documents, policies, tasks and reports.\n\nType the company name to confirm:`);
+    const typed = prompt(`This permanently deletes ${c.name} and ALL its employee files, documents, policies, tasks and reports.\n\nType the company name to confirm:`);
     if (typed !== c.name) return;
     try {
       const files = await q(sb.from('documents').select('path').eq('company_id', c.id));
-      if (files.length) await q(sb.storage.from('documents').remove(files.map((f) => f.path)));
+      const signDocs = await q(sb.from('sign_documents').select('file_path').eq('company_id', c.id));
+      const companyFiles = [...files.map((f) => f.path), ...signDocs.map((d) => d.file_path)];
+      if (companyFiles.length) await q(sb.storage.from('documents').remove(companyFiles));
+      const creds = await q(sb.from('credentials').select('file_path').eq('company_id', c.id).not('file_path', 'is', null));
+      if (creds.length) await q(sb.storage.from('employee-files').remove(creds.map((f) => f.file_path)));
       await q(sb.from('companies').delete().eq('id', c.id));
       await reloadCompanies();
       toast(`${c.name} deleted.`);
       renderApp();
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-  });
-};
-
-// ---------------------------------------------------------------------------
-// Admin: users
-// ---------------------------------------------------------------------------
-
-VIEWS.users = async (view) => {
-  if (!isAdmin()) return VIEWS.dashboard(view);
-  const [people, invites] = await Promise.all([
-    q(sb.from('profiles').select('*').order('email')),
-    q(sb.from('invites').select('*').order('created_at')),
-  ]);
-  const unassigned = '<option value="">— No company —</option>';
-
-  view.innerHTML = `
-    ${pageHead('Users', 'Only people you add here can use the portal.')}
-    <section class="card">
-      <h2>Add a person</h2>
-      ${state.companies.length ? `
-      <form id="invite" class="stack">
-        <div class="row">
-          <label>Email<input name="email" type="email" required></label>
-          <label>Full name<input name="full_name"></label>
-          <label>Company<select name="company_id" required>${companyOptions(state.companyId)}</select></label>
-        </div>
-        <button type="submit" class="btn">Add person</button>
-      </form>
-      <p class="muted small">Then create their login in Supabase: <strong>Authentication → Users → Add user</strong>.
-        They are linked to the company automatically. See the README for details.</p>`
-        : '<p class="muted">Add a <a href="#/companies">client company</a> first.</p>'}
-    </section>
-    ${invites.length ? `
-    <section class="card">
-      <h2>Waiting for a login</h2>
-      <ul class="list">${invites.map((i) => `
-        <li><span>${esc(i.full_name || '')} <span class="muted">${esc(i.email)}</span> → ${esc(companyName(i.company_id))}</span>
-          <button class="btn btn-sm btn-ghost" data-uninvite="${esc(i.email)}">Remove</button></li>`).join('')}</ul>
-    </section>` : ''}
-    <section class="card">
-      <h2>People with access</h2>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Person</th><th>Company</th><th>Role</th></tr></thead>
-        <tbody>${people.map((p) => `
-          <tr>
-            <td>${esc(p.full_name || '')}<div class="muted small">${esc(p.email)}</div></td>
-            <td><select data-company="${p.id}" aria-label="Company">${unassigned}${companyOptions(p.company_id)}</select></td>
-            <td><select data-role="${p.id}" aria-label="Role" ${p.id === state.user.id ? 'disabled' : ''}>
-              ${options({ client: 'Client', admin: 'BC HR admin' }, p.role)}</select></td>
-          </tr>`).join('')}
-        </tbody>
-      </table></div>
-    </section>`;
-
-  on(view, '#invite', 'submit', (e) => {
-    e.preventDefault();
-    const { email, full_name, company_id } = formData(e.target);
-    busy(e.target, async () => {
-      await q(sb.from('invites').upsert({ email: email.trim().toLowerCase(), full_name: full_name || null, company_id }));
-      toast(`${email} added. Now create their login in Supabase.`);
-      renderRoute();
-    });
-  });
-
-  on(view, '[data-uninvite]', 'click', async (e) => {
-    try {
-      await q(sb.from('invites').delete().eq('email', e.currentTarget.dataset.uninvite));
-      renderRoute();
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-  });
-
-  on(view, '[data-company]', 'change', async (e) => {
-    try {
-      await q(sb.from('profiles').update({ company_id: e.target.value || null }).eq('id', e.target.dataset.company));
-      toast('Company updated.');
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-  });
-
-  on(view, '[data-role]', 'change', async (e) => {
-    if (e.target.value === 'admin' && !confirm('BC HR admins can see every client company. Continue?')) {
-      e.target.value = 'client';
-      return;
-    }
-    try {
-      await q(sb.from('profiles').update({ role: e.target.value }).eq('id', e.target.dataset.role));
-      toast('Role updated.');
     } catch (err) {
       toast(err.message, 'error');
     }
@@ -974,7 +924,8 @@ VIEWS.account = async (view) => {
       <dl class="meta">
         <dt>Name</dt><dd>${esc(state.profile.full_name || '—')}</dd>
         <dt>Email</dt><dd>${esc(state.profile.email)}</dd>
-        <dt>Company</dt><dd>${isAdmin() ? 'BC HR &amp; Compliance (admin)' : esc(companyName(state.profile.company_id))}</dd>
+        <dt>Role</dt><dd>${esc(ROLE_LABEL[role()])}</dd>
+        <dt>Company</dt><dd>${isAdmin() ? 'BC HR &amp; Compliance' : esc(companyName(state.profile.company_id))}</dd>
       </dl>
     </section>
     <form id="password" class="card stack narrow">
@@ -995,5 +946,3 @@ VIEWS.account = async (view) => {
     });
   });
 };
-
-start();
