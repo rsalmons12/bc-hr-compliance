@@ -6,10 +6,10 @@ A static website hosted for free on GitHub Pages, served from your own domain.
 - `index.html` is the home page (services, process, FAQ, contact form)
 - `privacy.html` is the privacy policy (a template; review it before relying on it)
 - `styles.css` holds the styling
-- `CNAME` holds your custom domain. Currently set to `bchrcompliance.cloud`.
+- `CNAME` holds your custom domain. Currently set to `bchrfiles.com`.
 
 ## Before going live
-1. **Domain:** put your domain in `CNAME` (currently `bchrcompliance.cloud`).
+1. **Domain:** put your domain in `CNAME` (currently `bchrfiles.com`).
 2. **Email:** replace `info@example.com` in `index.html` and `privacy.html`.
 3. **Contact form:** create a free form at https://formspree.io, then replace `YOUR_FORM_ID` in `index.html`.
 
