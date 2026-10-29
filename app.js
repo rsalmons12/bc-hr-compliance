@@ -119,7 +119,7 @@ function companyOptions(selected) {
 }
 
 function brand() {
-  return '<div class="brand"><span class="logo">BC</span><span>HR &amp; Compliance</span></div>';
+  return '<div class="brand"><img class="mark" src="brand/mark.svg" alt=""><span>BC HR &amp; Compliance</span></div>';
 }
 
 // ---------------------------------------------------------------------------
@@ -179,7 +179,7 @@ function authCard(inner) {
   app.innerHTML = `
     <div class="auth">
       <div class="auth-card">
-        ${brand()}
+        <img class="auth-logo" src="brand/logo.png" alt="BC HR &amp; Compliance">
         ${inner}
       </div>
       <p class="auth-foot">Secure client portal · <a href="privacy.html">Privacy</a></p>
