@@ -33,7 +33,9 @@ function worstExpiry(creds) {
 
 async function managerDashboard(view) {
   const c = state.companyId;
-  const data = await loadCompanyPeople(c);
+  const [data, agency] = await Promise.all([loadCompanyPeople(c), loadAgencyCompliance(c)]);
+  const agencyDue = agency.docs.filter((d) => d.expiry_date && daysUntil(d.expiry_date) <= 60);
+  const openRevisions = agency.revisions.filter(revisionIsOpen);
   const employees = data.people.filter((p) => p.role === 'employee');
   const toReview = data.files.filter((f) => f.status === 'submitted');
   const expired = data.creds.filter((x) => x.expiry_date && daysUntil(x.expiry_date) < 0);
@@ -51,6 +53,8 @@ async function managerDashboard(view) {
       ${stat('Expired credentials', expired.length, '#/expiring', expired.length ? 'danger' : '')}
       ${stat('Expiring ≤ 30 days', soon.length, '#/expiring', soon.length ? 'warn' : '')}
       ${stat('Missing signatures', missingSigs.length, '#/sign', missingSigs.length ? 'warn' : '')}
+      ${stat('Agency items expired or due ≤ 60 days', agencyDue.length, '#/compliance', agencyDue.length ? 'danger' : '')}
+      ${stat('Open license revisions', openRevisions.length, '#/compliance/revisions', openRevisions.some(revisionOverdue) ? 'danger' : openRevisions.length ? 'warn' : '')}
     </div>
     <div class="grid2">
       <section class="card">

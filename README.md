@@ -7,7 +7,7 @@ A secure portal at **https://bchrfiles.com** for BC HR & Compliance and its clie
 | Role | Can do |
 |---|---|
 | **BC HR admin** (you) | Everything, for every client company. Only admins can see full SSNs and bank numbers, and every view is logged. |
-| **Manager** (client company contact) | Invite employees, review and approve onboarding, verify credentials, track expiry dates, publish documents to sign and policies, for their own company only. |
+| **Manager** (agency management) | Everything for their own agency: employees and onboarding, credential expiry, and agency compliance (state licenses, Department of Health revisions, plant documents, policies & procedures). |
 | **Employee** | Complete onboarding, keep their licenses up to date, sign documents, report concerns. |
 
 **Employee onboarding:** employees are invited by email. On first sign-in they set a password and complete:
@@ -18,6 +18,14 @@ A secure portal at **https://bchrfiles.com** for BC HR & Compliance and its clie
 5. Signing documents (PDFs signed by typed name) and acknowledging policies
 6. Review and submit, after which a manager or admin approves it or requests changes
 
+**Agency compliance (managers and BC HR only):**
+- **State licenses:** type, number, issuing agency, state, start and expiration dates, with attachments
+- **License revisions:** corrections requested by the Department of Health, tracked through open, in progress, submitted, accepted and closed, with due dates, the agency's letters and plans of correction
+- **Plant & facility:** certificate of occupancy, fire, HVAC, elevator, boiler, generator and similar certificates, with expiration dates
+- **Policies & procedures:** manuals and plans, with version and next-review date
+
+Every attachment version is kept and every change is logged (who, what, when). Managers can archive superseded items but cannot delete; only BC HR admins can.
+
 **Also included:** expiring-credential tracking, company files, a compliance checklist, and confidential complaints.
 
 **How it works:** GitHub Pages hosts the site. Supabase handles logins, data and files. The rules in `supabase/*.sql` run inside the database, so nobody can get around them from the browser.
@@ -26,10 +34,11 @@ A secure portal at **https://bchrfiles.com** for BC HR & Compliance and its clie
 
 | File | What it is |
 |---|---|
-| `index.html`, `app.js`, `onboarding.js`, `people.js`, `styles.css` | The portal |
+| `index.html`, `app.js`, `onboarding.js`, `compliance.js`, `people.js`, `styles.css` | The portal |
 | `config.js` | Supabase project URL and publishable key |
 | `supabase/schema.sql` | Step 1 database setup |
 | `supabase/002_onboarding.sql` | Step 2 database setup (roles, onboarding, encryption) |
+| `supabase/003_agency_compliance.sql` | Step 3 database setup (agency compliance) |
 | `supabase/functions/invite-user/index.ts` | Server function that sends invite emails |
 | `brand/` | Logo files |
 
@@ -53,7 +62,7 @@ A secure portal at **https://bchrfiles.com** for BC HR & Compliance and its clie
 
 ## Upgrade: employee onboarding (run once)
 
-1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**.
+1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`. Run them in that order, each once.
 2. **Invite function.**
    - Go to **Edge Functions → Deploy a new function → Via Editor**.
    - Name it exactly `invite-user`, replace the sample code with `supabase/functions/invite-user/index.ts`, and click **Deploy**.

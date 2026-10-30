@@ -330,6 +330,7 @@ const NAV = [
   { route: 'credentials', label: 'My licenses & credentials', roles: ['employee'] },
   { route: 'employees', label: 'Employees', roles: STAFF },
   { route: 'expiring', label: 'Expiring credentials', roles: STAFF },
+  { route: 'compliance', label: 'Agency compliance', roles: STAFF },
   { route: 'sign', label: 'Documents to sign', roles: ALL },
   { route: 'policies', label: 'Policies', roles: ALL },
   { route: 'documents', label: 'Company files', roles: ALL },
@@ -341,9 +342,9 @@ const NAV = [
 ];
 
 function parseRoute() {
-  const [route = 'dashboard', id = null] = location.hash.replace(/^#\/?/, '').split('/');
+  const [route = 'dashboard', id = null, sub = null] = location.hash.replace(/^#\/?/, '').split('/');
   const allowed = NAV.some((n) => n.route === route && n.roles.includes(role()));
-  return allowed ? { route, id } : { route: 'dashboard', id: null };
+  return allowed ? { route, id, sub } : { route: 'dashboard', id: null, sub: null };
 }
 
 function renderApp() {
@@ -408,13 +409,13 @@ function selectCompany(id) {
 const VIEWS = {};
 
 async function renderRoute() {
-  const { route, id } = parseRoute();
+  const { route, id, sub } = parseRoute();
   document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === route));
   const view = document.getElementById('view');
   if (!view) return;
   view.innerHTML = '<div class="loading">Loading…</div>';
   try {
-    await VIEWS[route](view, id);
+    await VIEWS[route](view, id, sub);
   } catch (err) {
     view.innerHTML = `<div class="card error">Could not load this page: ${esc(err.message)}</div>`;
   }
@@ -449,13 +450,17 @@ VIEWS.dashboard = (view) => {
 
 async function adminDashboard(view) {
   const soon = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-  const [tasks, complaints, files, profiles, expiring] = await Promise.all([
+  const soon60 = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+  const [tasks, complaints, files, profiles, expiring, agencyDue, revisions] = await Promise.all([
     q(sb.from('tasks').select('company_id, status, due_date')),
     q(sb.from('complaints').select('company_id, status')),
     q(sb.from('employee_profiles').select('company_id, status')),
     q(sb.from('profiles').select('company_id, role')),
     q(sb.from('credentials').select('company_id, expiry_date').lte('expiry_date', soon)),
+    q(sb.from('compliance_documents').select('company_id, expiry_date').eq('archived', false).lte('expiry_date', soon60)),
+    q(sb.from('license_revisions').select('company_id, status, due_date')),
   ]);
+  const openRevisions = revisions.filter(revisionIsOpen);
   const count = (rows, id, test = () => true) => rows.filter((r) => r.company_id === id && test(r)).length;
   const toReview = (r) => r.status === 'submitted';
   const isNew = (c) => c.status === 'new';
@@ -470,18 +475,22 @@ async function adminDashboard(view) {
       ${stat('Onboarding to review', files.filter(toReview).length, '#/employees', files.some(toReview) ? 'warn' : '')}
       ${stat('Credentials expiring ≤ 30 days', expiring.length, '#/expiring', expiring.length ? 'danger' : '')}
       ${stat('New complaints', complaints.filter(isNew).length, '#/complaints', complaints.some(isNew) ? 'warn' : '')}
+      ${stat('Agency items expired or due ≤ 60 days', agencyDue.length, '#/compliance', agencyDue.length ? 'danger' : '')}
+      ${stat('Open license revisions', openRevisions.length, '#/compliance/revisions', openRevisions.some(revisionOverdue) ? 'danger' : openRevisions.length ? 'warn' : '')}
     </div>
     <section class="card">
       <h2>Clients</h2>
       ${state.companies.length ? `
       <div class="table-wrap"><table>
-        <thead><tr><th>Company</th><th>People</th><th>Onboarding to review</th><th>Expiring ≤ 30 days</th><th>Overdue tasks</th><th>New complaints</th></tr></thead>
+        <thead><tr><th>Company</th><th>People</th><th>Onboarding to review</th><th>Expiring ≤ 30 days</th><th>Agency items due ≤ 60 days</th><th>Open revisions</th><th>Overdue tasks</th><th>New complaints</th></tr></thead>
         <tbody>${state.companies.map((c) => `
           <tr class="clickable" data-company="${c.id}">
             <td><strong>${esc(c.name)}</strong></td>
             <td>${count(people, c.id)}</td>
             <td>${cell(count(files, c.id, toReview), 'warn')}</td>
             <td>${cell(count(expiring, c.id), 'danger')}</td>
+            <td>${cell(count(agencyDue, c.id), 'danger')}</td>
+            <td>${cell(count(openRevisions, c.id), openRevisions.some((r) => r.company_id === c.id && revisionOverdue(r)) ? 'danger' : 'warn')}</td>
             <td>${cell(count(tasks, c.id, isOverdue), 'danger')}</td>
             <td>${cell(count(complaints, c.id, isNew), 'warn')}</td>
           </tr>`).join('')}
