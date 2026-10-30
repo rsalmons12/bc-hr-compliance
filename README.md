@@ -89,7 +89,7 @@ Not needed to add people: you create logins and send the details yourself. Set t
 4. Managers can add their own agency's employees the same way.
 5. Under **Documents to sign**, upload the PDFs every new hire must sign (offer letter, W-4, I-9, handbook acknowledgement…).
 
-If someone forgets their password, add them again on the **Users** page to see a fresh temporary password option, or reset it in Supabase under **Authentication → Users**.
+Adding someone who already has a login only updates their role and company; it does not change their password. Resetting a forgotten password from the portal is not built yet.
 
 ## Domain (already done)
 
