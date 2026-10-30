@@ -14,6 +14,23 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+// The server key: older projects expose SUPABASE_SERVICE_ROLE_KEY, newer ones
+// SUPABASE_SECRET_KEYS (a JSON map). BC_SECRET_KEY can be added by hand as a fallback.
+function serverKey(): string | undefined {
+  const legacy = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (legacy) return legacy;
+  const keys = Deno.env.get('SUPABASE_SECRET_KEYS');
+  if (keys) {
+    try {
+      const parsed = JSON.parse(keys);
+      return parsed.default ?? Object.values(parsed)[0] as string;
+    } catch {
+      // Not JSON; fall through.
+    }
+  }
+  return Deno.env.get('BC_SECRET_KEY');
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 }
@@ -23,7 +40,11 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Use POST' }, 405);
 
   try {
-    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+    const key = serverKey();
+    if (!key) {
+      return json({ error: 'The function has no server key. In Supabase: Edge Functions → Secrets, add BC_SECRET_KEY with your secret key.' }, 500);
+    }
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, key, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
