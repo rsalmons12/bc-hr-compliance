@@ -7,7 +7,7 @@ A secure portal at **https://bchrfiles.com** for BC HR & Compliance and its clie
 | Role | Can do |
 |---|---|
 | **BC HR admin** (you) | Everything, for every client company. Only admins can see full SSNs and bank numbers, and every view is logged. |
-| **Manager** (agency management) | Everything for their own agency: employees and onboarding, credential expiry, and agency compliance (state licenses, Department of Health revisions, plant documents, policies & procedures). |
+| **Manager** (agency management) | Everything for their own agency: employees and onboarding, credential expiry, and agency compliance (state licenses, Department of Health revisions, plant & business documents, policies & procedures). |
 | **Employee** | Complete onboarding, keep their licenses up to date, sign documents, report concerns. |
 
 **Employee onboarding:** employees are invited by email. On first sign-in they set a password and complete:
@@ -21,7 +21,7 @@ A secure portal at **https://bchrfiles.com** for BC HR & Compliance and its clie
 **Agency compliance (managers and BC HR only):**
 - **State licenses:** type, number, issuing agency, state, start and expiration dates, with attachments
 - **License revisions:** corrections requested by the Department of Health, tracked through open, in progress, submitted, accepted and closed, with due dates, the agency's letters and plans of correction
-- **Plant & facility:** certificate of occupancy, fire, HVAC, elevator, boiler, generator and similar certificates, with expiration dates
+- **Plant & business:** business formation (articles, operating agreement, Secretary of State registration, good standing), IRS EIN / SS-4, ownership structure and disclosures, insurance, plus facility certificates (occupancy, fire, HVAC, elevator, boiler, generator…), with expiration or renewal dates
 - **Policies & procedures:** manuals and plans, with version and next-review date
 
 Every attachment version is kept and every change is logged (who, what, when). Managers can archive superseded items but cannot delete; only BC HR admins can.

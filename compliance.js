@@ -22,19 +22,26 @@ const COMPLIANCE_TABS = {
   },
   plant: {
     category: 'plant',
-    label: 'Plant & facility',
-    singular: 'facility document',
+    label: 'Plant & business',
+    singular: 'plant or business document',
     numberField: 'number',
-    numberLabel: 'Certificate / permit number',
+    numberLabel: 'Certificate / permit / ID number',
     agencyLabel: 'Issued by',
-    agencyHint: 'e.g. City Fire Marshal',
-    startLabel: 'Issue / inspection date',
-    expiryLabel: 'Expiration date',
+    agencyHint: 'e.g. City Fire Marshal, Secretary of State, IRS',
+    startLabel: 'Issue / effective date',
+    expiryLabel: 'Expiration / renewal date',
     types: [
-      'Certificate of occupancy', 'Fire inspection certificate', 'Fire alarm inspection',
-      'Sprinkler system inspection', 'Fire extinguisher inspection', 'HVAC certificate',
-      'Elevator certificate', 'Boiler certificate', 'Generator inspection', 'Kitchen / food service permit',
-      'Water testing', 'Pest control', 'Backflow test', 'Other',
+      // Business formation and ownership
+      'Articles of incorporation / organization', 'Certificate of formation', 'Operating agreement / bylaws',
+      'Business registration (Secretary of State)', 'Certificate of good standing', 'Assumed name (DBA) certificate',
+      'IRS EIN confirmation (Form SS-4 / CP 575)', 'Ownership structure / org chart', 'Ownership disclosure (CMS-855)',
+      'Annual report / franchise tax filing', 'NPI confirmation', 'General liability insurance certificate',
+      'Professional liability insurance certificate', "Workers' compensation certificate", 'Surety bond',
+      // Plant and facility
+      'Certificate of occupancy', 'Lease agreement', 'Fire inspection certificate', 'Fire alarm inspection',
+      'Sprinkler system inspection', 'Fire extinguisher inspection', 'HVAC certificate', 'Elevator certificate',
+      'Boiler certificate', 'Generator inspection', 'Kitchen / food service permit', 'Water testing',
+      'Pest control', 'Backflow test', 'Other',
     ],
   },
   procedures: {
@@ -74,7 +81,7 @@ function revisionBadge(status) {
 }
 
 function complianceTabs(active) {
-  const tabs = [['', 'Overview'], ['licenses', 'State licenses'], ['revisions', 'License revisions'], ['plant', 'Plant & facility'], ['procedures', 'Policies & procedures']];
+  const tabs = [['', 'Overview'], ['licenses', 'State licenses'], ['revisions', 'License revisions'], ['plant', 'Plant & business'], ['procedures', 'Policies & procedures']];
   return `<nav class="tabs">${tabs.map(([k, label]) => `<a href="#/compliance${k ? '/' + k : ''}" class="${k === active ? 'active' : ''}">${esc(label)}</a>`).join('')}</nav>`;
 }
 
