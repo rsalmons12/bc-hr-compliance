@@ -379,7 +379,8 @@ VIEWS.expiring = async (view) => {
 // is ready immediately and nothing is emailed; the person picks their own password on
 // first sign-in.
 async function addUser(body) {
-  const { data, error } = await sb.functions.invoke('invite-user', {
+  const fn = cfg.inviteFunction || 'invite-user';
+  const { data, error } = await sb.functions.invoke(fn, {
     body: { ...body, redirect_to: location.origin + location.pathname },
   });
   if (error) {
@@ -391,9 +392,13 @@ async function addUser(body) {
       // Not a JSON error response; keep the original message.
     }
     if (error.name === 'FunctionsFetchError' || error.name === 'FunctionsRelayError' || /not found/i.test(message)) {
-      message = 'The "invite-user" function is not set up in Supabase yet. See step 2 of "Upgrade" in the README.';
+      message = `The "${fn}" function is not set up in Supabase yet. See step 2 of "Upgrade" in the README.`;
     }
     throw new Error(message);
+  }
+  // Our function always answers { ok: true }; anything else means it holds other code.
+  if (!data?.ok) {
+    throw new Error(`The "${fn}" function in Supabase does not contain the portal's code. Paste supabase/functions/invite-user/index.ts into it and deploy again.`);
   }
   return data;
 }

@@ -5,4 +5,6 @@
 window.PORTAL_CONFIG = {
   supabaseUrl: 'https://cahuepwfuexekhbrjxbz.supabase.co',
   supabaseKey: 'sb_publishable_kXQXAHO_qg6DUAQqa5vu0Q_esfzVxYk',
+  // Name of the Edge Function that creates logins (supabase/functions/invite-user).
+  inviteFunction: 'rapid-service',
 };

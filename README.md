@@ -68,6 +68,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
    - Name it exactly `invite-user`, replace the sample code with `supabase/functions/invite-user/index.ts`, and click **Deploy**.
    - Then open the function's **Details / Settings** and turn **off** **Verify JWT**. The function checks who is calling it itself.
    - If you deployed an earlier version, paste the new code over it and deploy again.
+   - If Supabase gives the function a different name (for example `rapid-service`), set `inviteFunction` in `config.js` to that name.
 
 ## Optional: set up emails
 
