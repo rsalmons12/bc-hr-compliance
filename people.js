@@ -97,7 +97,7 @@ VIEWS.employees = async (view, id) => {
   const rows = data.people.filter((p) => filter === 'all' || statusOf(p) === filter);
 
   view.innerHTML = `
-    ${pageHead('Employees', `${esc(companyName(state.companyId))} · ${data.people.length} people. <a href="#/users">Invite someone →</a>`)}
+    ${pageHead('Employees', `${esc(companyName(state.companyId))} · ${data.people.length} people. <a href="#/users">Add someone →</a>`)}
     <div class="filters">${Object.entries(EMPLOYEE_FILTERS).map(([k, label]) => {
       const n = k === 'all' ? data.people.length : data.people.filter((p) => statusOf(p) === k).length;
       return `<button class="chip ${k === filter ? 'active' : ''}" data-filter="${k}">${esc(label)} <span>${n}</span></button>`;
@@ -118,7 +118,7 @@ VIEWS.employees = async (view, id) => {
             <td>${required.length ? badge(`${signed} of ${required.length} signed`, signed === required.length ? 'ok' : 'warn') : '<span class="muted">—</span>'}</td>
           </tr>`;
         }).join('')}</tbody></table></div>`
-        : `<p class="muted">${data.people.length ? 'Nobody matches this filter.' : 'No employees yet. <a href="#/users">Send the first invite</a>.'}</p>`}
+        : `<p class="muted">${data.people.length ? 'Nobody matches this filter.' : 'No employees yet. <a href="#/users">Add the first one</a>.'}</p>`}
     </section>`;
 
   on(view, '[data-filter]', 'click', (e) => {
@@ -375,24 +375,47 @@ VIEWS.expiring = async (view) => {
 // Users and invites
 // ---------------------------------------------------------------------------
 
-async function inviteUser({ email, full_name, company_id, role: inviteRole }) {
+// Creates a login through the invite-user Edge Function. With a password, the account
+// is ready immediately and nothing is emailed; the person picks their own password on
+// first sign-in.
+async function addUser(body) {
   const { data, error } = await sb.functions.invoke('invite-user', {
-    body: { email, full_name, company_id, role: inviteRole, redirect_to: location.origin + location.pathname },
+    body: { ...body, redirect_to: location.origin + location.pathname },
   });
   if (error) {
     let message = error.message;
     try {
-      const body = await error.context.json();
-      if (body.error) message = body.error;
+      const reply = await error.context.json();
+      if (reply.error) message = reply.error;
     } catch {
       // Not a JSON error response; keep the original message.
     }
     if (error.name === 'FunctionsFetchError' || error.name === 'FunctionsRelayError' || /not found/i.test(message)) {
-      message = 'The invite service is not set up yet. See "Set up invite emails" in the README.';
+      message = 'The "invite-user" function is not set up in Supabase yet. See step 2 of "Upgrade" in the README.';
     }
     throw new Error(message);
   }
   return data;
+}
+
+// Readable temporary passwords, without look-alike characters.
+function tempPassword() {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  const raw = [...bytes].map((b) => chars[b % chars.length]).join('');
+  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8)}`;
+}
+
+function loginMessage({ full_name, email, password }) {
+  return `Hi${full_name ? ' ' + full_name.split(' ')[0] : ''},
+
+Your BC HR & Compliance portal account is ready.
+
+Sign in at: https://bchrfiles.com
+Email: ${email}
+Temporary password: ${password}
+
+You'll be asked to choose your own password when you first sign in.`;
 }
 
 VIEWS.users = async (view) => {
@@ -400,38 +423,49 @@ VIEWS.users = async (view) => {
   const peopleQuery = isAdmin()
     ? sb.from('profiles').select('*').order('email')
     : sb.from('profiles').select('*').eq('company_id', state.companyId).order('email');
-  const [people, invites] = await Promise.all([q(peopleQuery), q(sb.from('invites').select('*').order('created_at'))]);
+  const [people, pending] = await Promise.all([q(peopleQuery), q(sb.from('invites').select('*').order('created_at'))]);
   const unassigned = '<option value="">— No company —</option>';
+  const roleChoices = isAdmin()
+    ? { employee: 'Employee', manager: 'Manager (agency management)' }
+    : { employee: 'Employee' };
 
   view.innerHTML = `
-    ${pageHead('Users & invites', 'Only people you invite can sign in.')}
+    ${pageHead('Users', 'Create a login, then send the person their email and temporary password yourself.')}
     <section class="card">
-      <h2>Invite someone</h2>
-      <form id="invite" class="stack">
+      <h2>Add a person</h2>
+      <form id="add-user" class="stack">
         <div class="row">
-          <label>Email *<input name="email" type="email" required></label>
-          <label>Full name<input name="full_name"></label>
-          ${isAdmin() ? `
-            <label>Role<select name="role">${options({ employee: 'Employee', manager: 'Manager (sees company employees)' }, 'employee')}</select></label>
-            <label>Company *<select name="company_id" required>${companyOptions(state.companyId)}</select></label>`
-            : `<input type="hidden" name="role" value="employee"><input type="hidden" name="company_id" value="${esc(state.companyId)}">`}
+          <label>Email *<input name="email" type="email" required autocomplete="off"></label>
+          <label>Full name *<input name="full_name" required autocomplete="off"></label>
         </div>
-        <button type="submit" class="btn">Send invite</button>
+        <div class="row">
+          <label>Role *<select name="role" required>${options(roleChoices, 'employee')}</select></label>
+          ${isAdmin()
+            ? `<label>Company *<select name="company_id" required>${companyOptions(state.companyId)}</select></label>`
+            : `<input type="hidden" name="company_id" value="${esc(state.companyId)}">`}
+          <label>Temporary password *
+            <span class="input-with-button">
+              <input name="password" required minlength="8" autocomplete="off" value="${tempPassword()}">
+              <button type="button" class="btn btn-ghost btn-sm" id="regen">New</button>
+            </span>
+          </label>
+        </div>
+        <p class="muted small"><strong>Employees</strong> complete onboarding and see only their own file.
+          <strong>Managers</strong> see their agency's employees and agency compliance.
+          ${isAdmin() ? 'To make someone a BC HR admin, add them here, then change their role below.' : ''}</p>
+        <button type="submit" class="btn">Create login</button>
       </form>
-      <p class="muted small">They get an email with a link to set their password, then start onboarding.</p>
+      <div id="created"></div>
     </section>
-    ${invites.length ? `
+    ${pending.length ? `
     <section class="card">
-      <h2>Invited, not signed in yet</h2>
-      <ul class="list">${invites.map((i) => `
+      <h2>Waiting for a login</h2>
+      <p class="muted small">These people have a role and company assigned but no login yet. Add them again above to create one.</p>
+      <ul class="list">${pending.map((i) => `
         <li><span>${esc(i.full_name || '')} <span class="muted">${esc(i.email)}</span>
             ${badge(ROLE_LABEL[i.role] || 'Employee', 'neutral')}
-            ${isAdmin() ? `<span class="muted small">→ ${esc(companyName(i.company_id))}</span>` : ''}
-            <span class="muted small">· invited ${fmtDate(i.created_at)}</span></span>
-          <span class="button-row">
-            <button class="btn btn-sm btn-ghost" data-resend="${esc(i.email)}">Resend</button>
-            <button class="btn btn-sm btn-danger" data-uninvite="${esc(i.email)}">Cancel</button>
-          </span></li>`).join('')}</ul>
+            ${isAdmin() ? `<span class="muted small">→ ${esc(companyName(i.company_id))}</span>` : ''}</span>
+          <button class="btn btn-sm btn-danger" data-cancel="${esc(i.email)}">Remove</button></li>`).join('')}</ul>
     </section>` : ''}
     <section class="card">
       <h2>People with access</h2>
@@ -450,33 +484,68 @@ VIEWS.users = async (view) => {
       </table></div>
     </section>`;
 
-  on(view, '#invite', 'submit', (e) => {
+  on(view, '#regen', 'click', () => { view.querySelector('#add-user [name=password]').value = tempPassword(); });
+
+  on(view, '#add-user', 'submit', (e) => {
     e.preventDefault();
     const f = formData(e.target);
+    f.email = f.email.trim().toLowerCase();
     busy(e.target, async () => {
-      const result = await inviteUser({ ...f, full_name: f.full_name || null });
-      toast(result?.existing
-        ? `${f.email} already has a login. They have been linked to ${companyName(f.company_id)}.`
-        : `Invite sent to ${f.email}.`);
-      renderRoute();
+      const result = await addUser(f);
+      const box = view.querySelector('#created');
+      if (result?.existing) {
+        box.innerHTML = `<div class="notice info">${esc(f.email)} already has a login. Their role and company have been updated;
+          their password was not changed.</div>`;
+      } else {
+        box.innerHTML = `
+          <div class="notice ok created">
+            <strong>Login created for ${esc(f.full_name)} (${esc(ROLE_LABEL[f.role])}).</strong>
+            Copy this and send it to them by text or email. The password is not shown again.
+            <textarea readonly rows="9" id="message">${esc(loginMessage(f))}</textarea>
+            <button type="button" class="btn btn-sm" id="copy">Copy message</button>
+          </div>`;
+        on(box, '#copy', 'click', async () => {
+          const text = box.querySelector('#message');
+          try {
+            await navigator.clipboard.writeText(text.value);
+          } catch {
+            text.select();
+            document.execCommand('copy');
+          }
+          toast('Copied.');
+        });
+      }
+      e.target.reset();
+      e.target.password.value = tempPassword();
+      await refreshPeopleTable(view);
     });
   });
 
-  on(view, '[data-resend]', 'click', async (e) => {
-    const inv = invites.find((i) => i.email === e.currentTarget.dataset.resend);
-    e.currentTarget.disabled = true;
-    try {
-      await inviteUser(inv);
-      toast(`Invite re-sent to ${inv.email}.`);
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-    e.currentTarget.disabled = false;
-  });
+  bindPeopleTable(view);
+};
 
-  on(view, '[data-uninvite]', 'click', async (e) => {
+// Re-render everything but keep the "login created" message on screen.
+async function refreshPeopleTable(view) {
+  const created = view.querySelector('#created').innerHTML;
+  await VIEWS.users(view);
+  const box = view.querySelector('#created');
+  box.innerHTML = created;
+  on(box, '#copy', 'click', async () => {
+    const text = box.querySelector('#message');
     try {
-      await q(sb.from('invites').delete().eq('email', e.currentTarget.dataset.uninvite));
+      await navigator.clipboard.writeText(text.value);
+    } catch {
+      text.select();
+      document.execCommand('copy');
+    }
+    toast('Copied.');
+  });
+}
+
+function bindPeopleTable(view) {
+  on(view, '[data-cancel]', 'click', async (e) => {
+    try {
+      await q(sb.from('invites').delete().eq('email', e.currentTarget.dataset.cancel));
       renderRoute();
     } catch (err) {
       toast(err.message, 'error');
@@ -504,6 +573,6 @@ VIEWS.users = async (view) => {
       toast(err.message, 'error');
     }
   });
-};
+}
 
 start();

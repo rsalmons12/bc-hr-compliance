@@ -10,7 +10,7 @@ A secure portal at **https://bchrfiles.com** for BC HR & Compliance and its clie
 | **Manager** (agency management) | Everything for their own agency: employees and onboarding, credential expiry, and agency compliance (state licenses, Department of Health revisions, plant & business documents, policies & procedures). |
 | **Employee** | Complete onboarding, keep their licenses up to date, sign documents, report concerns. |
 
-**Employee onboarding:** employees are invited by email. On first sign-in they set a password and complete:
+**Employee onboarding:** you (or their manager) create each employee's login with a temporary password and send it to them. On first sign-in they choose their own password and complete:
 1. Personal details: legal name, date of birth, address, emergency contact
 2. Education: highest level, school, with optional diploma uploads
 3. Licenses and certifications: uploads with numbers and expiry dates
@@ -39,7 +39,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 | `supabase/schema.sql` | Step 1 database setup |
 | `supabase/002_onboarding.sql` | Step 2 database setup (roles, onboarding, encryption) |
 | `supabase/003_agency_compliance.sql` | Step 3 database setup (agency compliance) |
-| `supabase/functions/invite-user/index.ts` | Server function that sends invite emails |
+| `supabase/functions/invite-user/index.ts` | Server function that creates logins |
 | `brand/` | Logo files |
 
 ## One-time setup in Supabase
@@ -63,15 +63,15 @@ Every attachment version is kept and every change is logged (who, what, when). M
 ## Upgrade: employee onboarding (run once)
 
 1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`. Run them in that order, each once.
-2. **Invite function.**
+2. **Create-login function** (required for the **Users** page).
    - Go to **Edge Functions → Deploy a new function → Via Editor**.
    - Name it exactly `invite-user`, replace the sample code with `supabase/functions/invite-user/index.ts`, and click **Deploy**.
    - Then open the function's **Details / Settings** and turn **off** **Verify JWT**. The function checks who is calling it itself.
-3. **Invite emails.** See "Set up invite emails" below. Without this, invites only reach members of your Supabase team.
+   - If you deployed an earlier version, paste the new code over it and deploy again.
 
-## Set up invite emails
+## Optional: set up emails
 
-Supabase needs your own email sender to send invites and password resets to employees. Resend is free for up to 3,000 emails a month:
+Not needed to add people: you create logins and send the details yourself. Set this up only if you want the portal's **Forgot password** link to work for your clients. Resend is free for up to 3,000 emails a month:
 
 1. Sign up at https://resend.com, then go to **Domains → Add domain** and enter `bchrfiles.com`.
 2. Add the DNS records Resend shows you in Cloudflare (**DNS → Records**). Resend can do this for you with its **Sign in to Cloudflare** button.
@@ -83,12 +83,13 @@ Supabase needs your own email sender to send invites and password resets to empl
 
 ## Adding a client
 
-1. In the portal, go to **Client companies** and add the company.
-2. Go to **Users & invites**. Invite the company's contact as a **Manager**.
-3. The manager, or you, then invites their employees. Each employee gets an email, sets a password, and starts onboarding.
-4. Under **Documents to sign**, upload the PDFs every new hire must sign (offer letter, W-4, I-9, handbook acknowledgement…).
+1. In the portal, go to **Client companies** and add the agency.
+2. Go to **Users → Add a person**. Enter the email and name, choose the role (**Manager** for agency management, **Employee** for staff) and the company, and keep or change the temporary password.
+3. Click **Create login**, then **Copy message** and send it to them by text or email. They choose their own password when they first sign in.
+4. Managers can add their own agency's employees the same way.
+5. Under **Documents to sign**, upload the PDFs every new hire must sign (offer letter, W-4, I-9, handbook acknowledgement…).
 
-If invite emails aren't set up yet, you can still create a login by hand. Invite the person in the portal first, so their company and role are saved. Then in Supabase go to **Authentication → Users → Add user → Create new user**, tick **Auto Confirm User**, and send them the temporary password.
+If someone forgets their password, add them again on the **Users** page to see a fresh temporary password option, or reset it in Supabase under **Authentication → Users**.
 
 ## Domain (already done)
 

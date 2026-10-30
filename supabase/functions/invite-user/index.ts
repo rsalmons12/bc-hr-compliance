@@ -1,6 +1,7 @@
 // Supabase Edge Function: invite-user
-// Sends a portal invite email and pre-assigns the person to a company and role.
-// BC HR admins can invite anyone; managers can invite employees to their own company.
+// Creates a portal login with a temporary password (or, without a password, emails
+// an invite), and assigns the person's company and role.
+// BC HR admins can add anyone; managers can add employees to their own company.
 //
 // Deploy: Supabase -> Edge Functions -> Deploy a new function -> Via Editor,
 // name it "invite-user", paste this file, then turn OFF "Verify JWT"
@@ -32,15 +33,18 @@ Deno.serve(async (req) => {
     if (userError || !user) return json({ error: 'Please sign in again.' }, 401);
     const { data: me } = await admin.from('profiles').select('role, company_id').eq('id', user.id).single();
 
-    const { email, full_name, company_id, role = 'employee', redirect_to } = await req.json();
+    const { email, full_name, company_id, role = 'employee', password, redirect_to } = await req.json();
     const cleanEmail = String(email || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return json({ error: 'Please enter a valid email address.' }, 400);
     if (!company_id) return json({ error: 'Choose a company.' }, 400);
     if (!['employee', 'manager'].includes(role)) return json({ error: 'Role must be employee or manager.' }, 400);
+    if (password !== undefined && String(password).length < 8) {
+      return json({ error: 'The temporary password must be at least 8 characters.' }, 400);
+    }
 
     const allowed = me?.role === 'admin'
       || (me?.role === 'manager' && company_id === me.company_id && role === 'employee');
-    if (!allowed) return json({ error: 'You are not allowed to invite people to this company.' }, 403);
+    if (!allowed) return json({ error: 'You are not allowed to add people to this company.' }, 403);
 
     // Pre-assign company and role. If they already have a login, the database links them now.
     const { error: inviteRowError } = await admin.from('invites').upsert({
@@ -48,10 +52,17 @@ Deno.serve(async (req) => {
     });
     if (inviteRowError) throw inviteRowError;
 
-    const { error } = await admin.auth.admin.inviteUserByEmail(cleanEmail, {
-      redirectTo: redirect_to,
-      data: { full_name: full_name || null },
-    });
+    const { error } = password
+      ? await admin.auth.admin.createUser({
+        email: cleanEmail,
+        password: String(password),
+        email_confirm: true,
+        user_metadata: { full_name: full_name || null, must_change_password: true },
+      })
+      : await admin.auth.admin.inviteUserByEmail(cleanEmail, {
+        redirectTo: redirect_to,
+        data: { full_name: full_name || null },
+      });
     if (error) {
       if (/already been registered|already exists/i.test(error.message)) {
         return json({ ok: true, existing: true });

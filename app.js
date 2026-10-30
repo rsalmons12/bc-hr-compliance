@@ -206,6 +206,8 @@ async function onSession(session) {
     renderLogin();
     return;
   }
+  // People given a temporary password choose their own on first sign-in.
+  if (user.user_metadata?.must_change_password) state.needsPassword = true;
   try {
     state.profile = await q(sb.from('profiles').select('*').eq('id', user.id).single());
     if (isAdmin()) {
@@ -296,7 +298,7 @@ function renderForgot() {
 
 function renderSetPassword() {
   authCard(`
-    <h1>${linkType === 'invite' ? 'Welcome! Choose a password' : 'Choose a new password'}</h1>
+    <h1>${linkType === 'invite' || state.user.user_metadata?.must_change_password ? 'Welcome! Choose your own password' : 'Choose a new password'}</h1>
     <p class="muted">Signed in as ${esc(state.user.email)}. Use at least 8 characters.</p>
     <form id="setpw" class="stack">
       <label>New password<input name="password" type="password" minlength="8" required autocomplete="new-password"></label>
@@ -309,7 +311,8 @@ function renderSetPassword() {
     const { password, confirm } = formData(e.target);
     if (password !== confirm) return toast('The passwords do not match.', 'error');
     busy(e.target, async () => {
-      await q(sb.auth.updateUser({ password }));
+      await q(sb.auth.updateUser({ password, data: { must_change_password: false } }));
+      state.user.user_metadata = { ...state.user.user_metadata, must_change_password: false };
       state.needsPassword = false;
       history.replaceState(null, '', location.pathname);
       toast('Password saved.');
@@ -336,7 +339,7 @@ const NAV = [
   { route: 'documents', label: 'Company files', roles: ALL },
   { route: 'checklist', label: 'Compliance checklist', roles: STAFF },
   { route: 'complaints', label: 'Complaints & incidents', roles: ALL },
-  { route: 'users', label: 'Users & invites', roles: STAFF },
+  { route: 'users', label: 'Users', roles: STAFF },
   { route: 'companies', label: 'Client companies', roles: ['admin'] },
   { route: 'account', label: 'My account', roles: ALL },
 ];
