@@ -26,6 +26,12 @@ A secure portal at **https://bchrfiles.com** for BC HR & Compliance and its clie
 
 Every attachment version is kept and every change is logged (who, what, when). Managers can archive superseded items but cannot delete; only BC HR admins can.
 
+**Training:**
+- Modules with lesson text, an optional YouTube / Vimeo video and PDF, and a multiple-choice quiz with a pass mark. A module can be for every agency (BC HR admins) or one agency (that agency's managers too).
+- Employees take modules in the portal. Quizzes are graded in the database, so answers can't be read from the browser. Passing records the score, date and renewal date, with a printable certificate.
+- Training completed elsewhere (CPR, BLS, in-services) can be recorded with the certificate, by the employee or their manager.
+- A status grid shows who is complete, due or expired for each required module.
+
 **Also included:** expiring-credential tracking, company files, a compliance checklist, and confidential complaints.
 
 **How it works:** GitHub Pages hosts the site. Supabase handles logins, data and files. The rules in `supabase/*.sql` run inside the database, so nobody can get around them from the browser.
@@ -34,11 +40,12 @@ Every attachment version is kept and every change is logged (who, what, when). M
 
 | File | What it is |
 |---|---|
-| `index.html`, `app.js`, `onboarding.js`, `compliance.js`, `people.js`, `styles.css` | The portal |
+| `index.html`, `app.js`, `onboarding.js`, `compliance.js`, `training.js`, `people.js`, `styles.css` | The portal |
 | `config.js` | Supabase project URL and publishable key |
 | `supabase/schema.sql` | Step 1 database setup |
 | `supabase/002_onboarding.sql` | Step 2 database setup (roles, onboarding, encryption) |
 | `supabase/003_agency_compliance.sql` | Step 3 database setup (agency compliance) |
+| `supabase/004_training.sql` | Step 4 database setup (training) |
 | `supabase/functions/invite-user/index.ts` | Server function that creates logins |
 | `brand/` | Logo files |
 
@@ -62,7 +69,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 
 ## Upgrade: employee onboarding (run once)
 
-1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`. Run them in that order, each once.
+1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`, then `supabase/004_training.sql`. Run them in that order, each once.
 2. **Create-login function** (required for the **Users** page).
    - Go to **Edge Functions → Deploy a new function → Via Editor**.
    - Name it exactly `invite-user`, replace the sample code with `supabase/functions/invite-user/index.ts`, and click **Deploy**.

@@ -33,7 +33,11 @@ function worstExpiry(creds) {
 
 async function managerDashboard(view) {
   const c = state.companyId;
-  const [data, agency] = await Promise.all([loadCompanyPeople(c), loadAgencyCompliance(c)]);
+  const [data, agency, modules, training] = await Promise.all([
+    loadCompanyPeople(c), loadAgencyCompliance(c), loadTrainingModules(),
+    q(sb.from('training_completions').select('*').eq('company_id', c)),
+  ]);
+  const trainingDue = data.people.filter((person) => requiredTrainingGaps(modules, training, person).length);
   const agencyDue = agency.docs.filter((d) => d.expiry_date && daysUntil(d.expiry_date) <= 60);
   const openRevisions = agency.revisions.filter(revisionIsOpen);
   const employees = data.people.filter((p) => p.role === 'employee');
@@ -53,6 +57,7 @@ async function managerDashboard(view) {
       ${stat('Expired credentials', expired.length, '#/expiring', expired.length ? 'danger' : '')}
       ${stat('Expiring ≤ 30 days', soon.length, '#/expiring', soon.length ? 'warn' : '')}
       ${stat('Missing signatures', missingSigs.length, '#/sign', missingSigs.length ? 'warn' : '')}
+      ${stat('People with training due', trainingDue.length, '#/training/status', trainingDue.length ? 'warn' : '')}
       ${stat('Agency items expired or due ≤ 60 days', agencyDue.length, '#/compliance', agencyDue.length ? 'danger' : '')}
       ${stat('Open license revisions', openRevisions.length, '#/compliance/revisions', openRevisions.some(revisionOverdue) ? 'danger' : openRevisions.length ? 'warn' : '')}
     </div>
@@ -130,14 +135,18 @@ VIEWS.employees = async (view, id) => {
 
 async function employeeDetail(view, id) {
   const p = await q(sb.from('profiles').select('*').eq('id', id).single());
-  const [file, creds, docs, sigs, policies, acks] = await Promise.all([
+  const [file, creds, docs, sigs, policies, acks, modules, training] = await Promise.all([
     q(sb.from('employee_profiles').select('*').eq('user_id', id).maybeSingle()),
     q(sb.from('credentials').select('*').eq('user_id', id).order('expiry_date', { nullsFirst: false })),
     q(sb.from('sign_documents').select('*').eq('company_id', p.company_id).order('created_at')),
     q(sb.from('signatures').select('*').eq('user_id', id)),
     q(sb.from('policies').select('id, title').eq('company_id', p.company_id).order('created_at')),
     q(sb.from('policy_acknowledgements').select('*').eq('user_id', id)),
+    q(sb.from('training_modules').select('*').or(`company_id.is.null,company_id.eq.${p.company_id}`).eq('active', true).order('title')),
+    q(sb.from('training_completions').select('*').eq('user_id', id).order('completed_at', { ascending: false })),
   ]);
+  const requiredTraining = modules.filter((m) => isRequiredFor(m, p.role));
+  const outsideTraining = training.filter((t) => t.source === 'external');
   const e = file || {};
   const dl = (pairs) => `<dl class="meta">${pairs.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v ? esc(v) : '<span class="muted">—</span>'}</dd>`).join('')}</dl>`;
   const address = [e.address_line1, e.address_line2, [e.city, e.state, e.zip].filter(Boolean).join(', ')].filter(Boolean).join('\n');
@@ -233,7 +242,29 @@ async function employeeDetail(view, id) {
               <td>${a ? `${badge('Acknowledged', 'ok')} <span class="muted small">${fmtDate(a.acknowledged_at)}</span>` : badge('Not yet', 'warn')}</td></tr>`;
           }).join('')}
         </tbody></table></div>` : '<p class="muted">Nothing to sign at this company yet.</p>'}
+    </section>
+
+    <section class="card">
+      <h2>Training</h2>
+      ${requiredTraining.length || outsideTraining.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Training</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${requiredTraining.map((m) => {
+            const st = trainingStatus(m, training);
+            return `<tr><td>🎓 ${esc(m.title)} <span class="muted small">(required)</span></td>
+              <td>${trainingBadge(st)} ${st.record?.score != null ? `<span class="muted small">${st.record.score}% · ${fmtDate(st.record.completed_at)}</span>` : ''}</td>
+              <td class="actions">${st.key === 'complete' ? `<a class="btn btn-sm btn-ghost" href="#/training/certificate/${st.record.id}">Certificate</a>` : ''}</td></tr>`;
+          }).join('')}
+          ${outsideTraining.map((t) => `<tr><td>📋 ${esc(t.title)} <span class="muted small">${esc(t.provider || 'outside training')}</span></td>
+              <td>${badge(`Completed ${fmtDate(t.completed_at)}`, 'ok')} ${t.expires_at ? expiryBadge(t.expires_at) : ''}</td>
+              <td class="actions">${t.file_path ? `<button class="btn btn-sm btn-ghost" data-tcert="${t.id}">Certificate</button>` : ''}</td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="muted">No required training or training records yet.</p>'}
     </section>`;
+
+  on(view, '[data-tcert]', 'click', (ev) => {
+    const t = outsideTraining.find((x) => x.id === ev.currentTarget.dataset.tcert);
+    openSignedFile('employee-files', t.file_path, t.file_name, false);
+  });
 
   on(view, '#review', 'submit', (ev) => {
     ev.preventDefault();

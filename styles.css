@@ -243,3 +243,43 @@ label.check input { width: auto; margin-top: 3px; }
 .notice.created { display: grid; gap: 10px; margin-top: 16px; }
 .notice.created textarea { font-size: 14px; background: #fff; color: var(--ink); }
 .notice.created .btn { justify-self: start; }
+
+/* Training */
+.training-card { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 0; border-top: 1px solid var(--line); }
+.training-card:first-of-type { border-top: 0; padding-top: 0; }
+.training-card h3 { margin: 0 0 4px; }
+.training-card p { margin: 0 0 6px; }
+.video { position: relative; width: 100%; aspect-ratio: 16 / 9; margin: 0 0 16px; border-radius: 10px; overflow: hidden; background: #000; }
+.video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+video.video { display: block; }
+.lesson { margin-top: 8px; }
+fieldset.question, fieldset.checks { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 0; display: grid; gap: 10px; }
+fieldset.question legend, fieldset.checks legend { font-weight: 600; color: var(--navy); padding: 0 6px; }
+fieldset.checks { display: flex; gap: 24px; flex-wrap: wrap; }
+.answer-row { display: flex; gap: 10px; align-items: center; }
+.answer-row input[type="radio"] { width: auto; }
+.quiz-list { margin: 0 0 16px; padding-left: 20px; display: grid; gap: 14px; }
+.quiz-list .quiz-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.quiz-list ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
+.quiz-list li.correct { color: var(--ok); font-weight: 600; }
+.matrix th { white-space: normal; min-width: 120px; }
+.certificate { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 48px 32px; text-align: center; max-width: 760px; margin: 16px auto;
+  background-image: linear-gradient(90deg, var(--cyan), var(--brand), var(--green)); background-size: 100% 8px; background-repeat: no-repeat; }
+.certificate img { width: 150px; margin-bottom: 12px; }
+.certificate h1 { font-size: 34px; margin: 6px 0; }
+.certificate h2 { font-size: 22px; margin: 6px 0 22px; }
+.cert-kicker { text-transform: uppercase; letter-spacing: .14em; color: var(--brand); font-weight: 700; margin: 0 0 18px; }
+.cert-meta { display: flex; justify-content: center; gap: 36px; flex-wrap: wrap; margin: 0 0 20px; }
+.cert-meta dt { color: var(--muted); font-size: 13px; }
+.cert-meta dd { margin: 2px 0 0; font-weight: 600; }
+
+@media print {
+  .sidebar, .topbar, .no-print, #toast { display: none !important; }
+  .shell { display: block; }
+  .view { padding: 0; max-width: none; }
+  body { background: #fff; }
+  .certificate { border: 2px solid var(--navy); margin: 40px auto; }
+}
+@media (max-width: 700px) {
+  .training-card { flex-direction: column; align-items: stretch; }
+}

@@ -105,8 +105,13 @@ function stepStatus(d) {
 // ---------------------------------------------------------------------------
 
 async function employeeDashboard(view) {
-  const d = await loadOnboarding();
+  const [d, modules, training] = await Promise.all([
+    loadOnboarding(),
+    q(sb.from('training_modules').select('*').eq('active', true)),
+    q(sb.from('training_completions').select('*').eq('user_id', state.user.id)),
+  ]);
   const st = stepStatus(d);
+  const trainingDue = requiredTrainingGaps(modules, training, state.profile);
   const required = ['personal', 'education', 'deposit', 'sign'];
   const done = required.filter((k) => st[k]).length;
   const status = d.emp?.status;
@@ -131,6 +136,7 @@ async function employeeDashboard(view) {
     </section>
     <div class="stats">
       ${stat('Documents to sign', toSign, '#/sign', toSign ? 'warn' : '')}
+      ${stat('Training due', trainingDue.length, '#/training', trainingDue.length ? 'warn' : '')}
       ${stat('Credentials on file', d.creds.length, '#/credentials')}
       ${stat('Expiring within 90 days', expiring.length, '#/credentials', expiring.length ? 'danger' : '')}
     </div>
@@ -139,6 +145,12 @@ async function employeeDashboard(view) {
       <h2>Renew soon</h2>
       <ul class="list">${expiring.map((c) => `<li><span><strong>${esc(c.name)}</strong> <span class="muted small">${esc(CRED_KINDS[c.kind])}</span></span>${expiryBadge(c.expiry_date)}</li>`).join('')}</ul>
       <a href="#/credentials">Upload a renewal →</a>
+    </section>` : ''}
+    ${trainingDue.length ? `
+    <section class="card">
+      <h2>Training to complete</h2>
+      <ul class="list">${trainingDue.map((m) => `<li><a href="#/training/take/${m.id}">${esc(m.title)}</a>
+        ${trainingBadge(trainingStatus(m, training))}</li>`).join('')}</ul>
     </section>` : ''}`;
 }
 

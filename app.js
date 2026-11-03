@@ -334,6 +334,7 @@ const NAV = [
   { route: 'employees', label: 'Employees', roles: STAFF },
   { route: 'expiring', label: 'Expiring credentials', roles: STAFF },
   { route: 'compliance', label: 'Agency compliance', roles: STAFF },
+  { route: 'training', label: 'Training', roles: ALL },
   { route: 'sign', label: 'Documents to sign', roles: ALL },
   { route: 'policies', label: 'Policies', roles: ALL },
   { route: 'documents', label: 'Company files', roles: ALL },
