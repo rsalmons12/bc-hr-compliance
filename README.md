@@ -46,6 +46,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 | `supabase/002_onboarding.sql` | Step 2 database setup (roles, onboarding, encryption) |
 | `supabase/003_agency_compliance.sql` | Step 3 database setup (agency compliance) |
 | `supabase/004_training.sql` | Step 4 database setup (training) |
+| `supabase/005_training_library.sql` | Optional: 17 starter training modules with draft lessons and quizzes |
 | `supabase/functions/invite-user/index.ts` | Server function that creates logins |
 | `brand/` | Logo files |
 
@@ -69,7 +70,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 
 ## Upgrade: employee onboarding (run once)
 
-1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`, then `supabase/004_training.sql`. Run them in that order, each once.
+1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`, then `supabase/004_training.sql`. Run them in that order, each once. Optionally run `supabase/005_training_library.sql` afterwards to add the starter training library (created inactive for review).
 2. **Create-login function** (required for the **Users** page).
    - Go to **Edge Functions → Deploy a new function → Via Editor**.
    - Name it exactly `invite-user`, replace the sample code with `supabase/functions/invite-user/index.ts`, and click **Deploy**.
