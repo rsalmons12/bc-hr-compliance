@@ -315,11 +315,13 @@ VIEWS.screening = async (view) => {
   if (needsCompany(view)) return;
   const c = state.companyId;
   const company = currentCompany();
-  const [people, background, drugs, health] = await Promise.all([
+  const [people, background, drugs, health, files, jobs] = await Promise.all([
     q(sb.from('profiles').select('id, email, full_name, role').eq('company_id', c).neq('role', 'admin').order('full_name')),
     q(sb.from('background_checks').select('*').eq('company_id', c).order('created_at', { ascending: false })),
     q(sb.from('drug_screens').select('*').eq('company_id', c).order('created_at', { ascending: false })),
     q(sb.from('health_screenings').select('*').eq('company_id', c)),
+    q(sb.from('employee_profiles').select('*').eq('company_id', c)),
+    q(sb.from('employment_history').select('*').eq('company_id', c)),
   ]);
   const latest = (rows, uid) => rows.find((r) => r.user_id === uid);
 
@@ -334,7 +336,7 @@ VIEWS.screening = async (view) => {
     ${pageHead('Screenings', `${esc(companyName(c))} · background check, drug screen, TB, measles and rubella are required for everyone.`)}
     <section class="card">
       ${people.length ? `<div class="table-wrap"><table>
-        <thead><tr><th>Person</th><th>Background check</th><th>Drug screen</th><th>TB / measles / rubella</th><th></th></tr></thead>
+        <thead><tr><th>Person</th><th>Background check</th><th>Drug screen</th><th>TB / measles / rubella</th><th>Employment verified</th><th></th></tr></thead>
         <tbody>${people.map((p) => {
           const b = latest(background, p.id);
           const s = latest(drugs, p.id);
@@ -343,6 +345,14 @@ VIEWS.screening = async (view) => {
             <td>${b ? `${backgroundBadge(b.result)} <div class="muted small">${b.appointment_date ? `Appt ${fmtDate(b.appointment_date)}` : ''}</div>` : badge('Not booked', 'warn')}</td>
             <td>${s ? `${screenBadge(s.result)} <div class="muted small">${esc(SCREEN_TYPES[s.screen_type])} · ${fmtDate(s.result_date || s.appointment_date)}</div>` : badge('Not done', 'warn')}</td>
             <td>${healthCell(p.id)}</td>
+            <td>${(() => {
+              const file = files.find((f) => f.user_id === p.id);
+              const mine = jobs.filter((j) => j.user_id === p.id);
+              if (workVerified(file, mine)) return badge('Complete', 'ok');
+              if (!file?.resume_path) return badge('No resume', 'warn');
+              const done = mine.filter((j) => j.verification_status !== 'not_started').length;
+              return badge(`${done} of ${mine.length} verified`, 'warn');
+            })()}</td>
             <td class="actions"><a class="btn btn-sm" href="#/employees/${p.id}">Document drug screen</a></td>
           </tr>`;
         }).join('')}</tbody></table></div>`

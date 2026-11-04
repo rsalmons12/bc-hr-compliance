@@ -50,6 +50,7 @@ const ALL_STEPS = [
   { id: 'personal', label: 'Personal details' },
   { id: 'job', label: 'Job description' },
   { id: 'education', label: 'Education' },
+  { id: 'work', label: 'Resume & work history' },
   { id: 'credentials', label: 'Licenses & certifications', optional: true },
   { id: 'deposit', label: 'Direct deposit & SSN' },
   { id: 'background', label: 'Background check' },
@@ -75,7 +76,7 @@ const MAX_UPLOAD = 20 * 1024 * 1024;
 async function loadOnboarding() {
   const c = state.companyId;
   const uid = state.user.id;
-  const [emp, creds, sensitive, docs, sigs, policies, acks, positionAcks, screens, health, background] = await Promise.all([
+  const [emp, creds, sensitive, docs, sigs, policies, acks, positionAcks, screens, health, background, work] = await Promise.all([
     q(sb.from('employee_profiles').select('*').eq('user_id', uid).maybeSingle()),
     q(sb.from('credentials').select('*').eq('user_id', uid).order('created_at')),
     q(sb.rpc('my_sensitive_summary')),
@@ -87,12 +88,13 @@ async function loadOnboarding() {
     q(sb.from('drug_screens').select('*').eq('user_id', uid).order('created_at', { ascending: false })),
     q(sb.from('health_screenings').select('*').eq('user_id', uid)),
     q(sb.from('background_checks').select('*').eq('user_id', uid).order('created_at', { ascending: false })),
+    q(sb.from('employment_history').select('*').eq('user_id', uid).order('start_date', { ascending: false })),
   ]);
   const position = emp?.position_id
     ? await q(sb.from('positions').select('*').eq('id', emp.position_id).maybeSingle())
     : null;
   state.emp = emp;
-  return { emp, creds, sensitive: sensitive[0] || null, docs, sigs, policies, acks, position, positionAcks, screens, health, background };
+  return { emp, creds, sensitive: sensitive[0] || null, docs, sigs, policies, acks, position, positionAcks, screens, health, background, work };
 }
 
 function stepStatus(d) {
@@ -103,6 +105,7 @@ function stepStatus(d) {
     personal: PERSONAL_REQUIRED.every((k) => e[k]),
     job: !!(d.position && d.positionAcks.some((a) => a.position_id === d.position.id)),
     background: d.background.some((b) => b.appointment_date || b.result !== 'pending'),
+    work: workStepDone(d.emp, d.work),
     health: healthStepDone(d.health),
     education: !!e.education_level,
     credentials: d.creds.some((c) => c.kind !== 'degree'),
@@ -468,6 +471,7 @@ STEP_VIEWS.review = (el, d, st) => {
           <span class="muted small">${d.creds.length} on file</span></span><a href="#/onboarding/credentials">Edit</a></li>
         ${row('job', 'Job description', st.job ? `Signed: ${esc(d.position.title)}` : d.position ? 'Not signed yet' : 'Position not assigned yet')}
         ${row('deposit', 'Direct deposit & SSN', e.bank_on_file && e.ssn_on_file ? 'On file' : 'Missing')}
+        ${row('work', 'Resume & work history', st.work ? `Resume uploaded, ${d.work.length} employer${d.work.length === 1 ? '' : 's'} listed` : 'Not done yet')}
         ${row('background', 'Background check', st.background ? 'Scheduled' : 'Not scheduled yet')}
         ${row('health', 'TB, measles & rubella', st.health ? 'Booked or uploaded' : 'Not done yet')}
         ${row('sign', 'Documents & policies', st.sign ? 'All signed' : `${st.unsignedDocs.length + st.unackedPolicies.length} still to sign`)}

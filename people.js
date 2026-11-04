@@ -147,11 +147,13 @@ async function employeeDetail(view, id) {
   ]);
   const requiredTraining = modules.filter((m) => isRequiredFor(m, p.role));
   const outsideTraining = training.filter((t) => t.source === 'external');
-  const [jobAndScreening, healthRows] = await Promise.all([
+  const [jobAndScreening, jobs, healthRows] = await Promise.all([
     loadPositionAndScreening(p),
+    q(sb.from('employment_history').select('*').eq('user_id', p.id).order('start_date', { ascending: false })),
     q(sb.from('health_screenings').select('*').eq('user_id', p.id).order('created_at', { ascending: false })),
   ]);
   const agency = state.companies.find((c) => c.id === p.company_id) || {};
+  const verifiers = await actorNames(jobs.map((j) => j.verified_by));
   const e = file || {};
   const dl = (pairs) => `<dl class="meta">${pairs.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v ? esc(v) : '<span class="muted">—</span>'}</dd>`).join('')}</dl>`;
   const address = [e.address_line1, e.address_line2, [e.city, e.state, e.zip].filter(Boolean).join(', ')].filter(Boolean).join('\n');
@@ -181,6 +183,7 @@ async function employeeDetail(view, id) {
     ${backgroundSectionHtml(jobAndScreening)}
     ${drugSectionHtml(jobAndScreening)}
     ${healthSectionHtml(healthRows)}
+    ${employmentSectionHtml(file, jobs, verifiers)}
 
     <div class="grid2">
       <section class="card">
@@ -273,6 +276,7 @@ async function employeeDetail(view, id) {
 
   bindPositionAndScreening(view, p, file, jobAndScreening);
   bindHealthSection(view, p, healthRows);
+  bindEmploymentSection(view, p, file, jobs);
 
   on(view, '[data-tcert]', 'click', (ev) => {
     const t = outsideTraining.find((x) => x.id === ev.currentTarget.dataset.tcert);
@@ -288,6 +292,10 @@ async function employeeDetail(view, id) {
       return;
     }
     // Drug screening is mandatory: a negative result must be on file before approval.
+    if (action === 'approved' && !workVerified(file, jobs)) {
+      toast('Upload the resume and record a verification outcome for every previous employer before approving onboarding.', 'error');
+      return;
+    }
     if (action === 'approved' && !jobAndScreening.background.some((b) => b.result === 'cleared')) {
       toast('Record a cleared background check before approving onboarding.', 'error');
       return;

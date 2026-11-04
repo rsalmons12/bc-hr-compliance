@@ -38,6 +38,8 @@ Every attachment version is kept and every change is logged (who, what, when). M
 
 **TB, measles and rubella screening:** mandatory for every employee. Employees either upload a result from the past 12 months or book a test the agency pays for (CVS MinuteClinic TB testing, and titer/immunity testing for measles and rubella); set each agency's booking link under **Client companies → TB, measles & rubella settings**. Staff record the results (TB negative, measles and rubella immune), valid for 12 months.
 
+**Resume and employment verification:** employees upload a resume and list previous employers (employer, job title, phone, dates, full-time / part-time) during onboarding, or confirm they have none. On the employee's file, the agency records each verification: the person spoken to (name, title, phone), the dates and full-time / part-time status confirmed, the date verified, the outcome (verified, unable to verify, discrepancy) and notes; the database records who verified it. Onboarding cannot be approved until the resume is uploaded and every employer has an outcome.
+
 **Mandatory screenings:** background check, drug screen, TB, measles and rubella are required for every employee. Employees see a **Required screenings** checklist on their dashboard and a **Background check & screenings** page; managers and BC HR see everyone's status on the **Screenings** page. Onboarding cannot be approved until all are cleared.
 
 **Training:**
@@ -54,7 +56,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 
 | File | What it is |
 |---|---|
-| `index.html`, `app.js`, `onboarding.js`, `positions.js`, `health.js`, `compliance.js`, `training.js`, `people.js`, `styles.css` | The portal |
+| `index.html`, `app.js`, `onboarding.js`, `positions.js`, `health.js`, `employment.js`, `compliance.js`, `training.js`, `people.js`, `styles.css` | The portal |
 | `config.js` | Supabase project URL and publishable key |
 | `supabase/schema.sql` | Step 1 database setup |
 | `supabase/002_onboarding.sql` | Step 2 database setup (roles, onboarding, encryption) |
@@ -65,6 +67,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 | `supabase/007_health_screening.sql` | Step 7: TB and measles screening |
 | `supabase/008_rubella.sql` | Step 8: adds rubella |
 | `supabase/009_background_checks.sql` | Step 9: separates the background check from drug screening |
+| `supabase/010_employment_history.sql` | Step 10: resume, work history and employment verification |
 | `supabase/functions/invite-user/index.ts` | Server function that creates logins |
 | `brand/` | Logo files |
 
@@ -88,7 +91,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 
 ## Upgrade: employee onboarding (run once)
 
-1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`, then `supabase/004_training.sql`. Run them in that order, each once. Optionally run `supabase/005_training_library.sql` afterwards to add the starter training library (created inactive for review). Then run `supabase/006_positions_drug_screening.sql`, then `supabase/007_health_screening.sql`, then `supabase/008_rubella.sql`, then `supabase/009_background_checks.sql`.
+1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`, then `supabase/004_training.sql`. Run them in that order, each once. Optionally run `supabase/005_training_library.sql` afterwards to add the starter training library (created inactive for review). Then run `supabase/006_positions_drug_screening.sql`, then `supabase/007_health_screening.sql`, then `supabase/008_rubella.sql`, then `supabase/009_background_checks.sql`, then `supabase/010_employment_history.sql`.
 
 **This repository is public.** Keep client-specific data (job descriptions, addresses, codes) out of it: load it through the portal, or run a private SQL file in Supabase without committing it.
 2. **Create-login function** (required for the **Users** page).

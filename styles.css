@@ -309,3 +309,6 @@ fieldset.checks { display: flex; gap: 24px; flex-wrap: wrap; }
 .company-row details + details { margin-top: 4px; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 4px; }
 .card-head h2 { margin: 0; }
+.verify-card { border-top: 1px solid var(--line); padding: 14px 0; display: grid; gap: 10px; justify-items: start; }
+.verify-card .verify-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; width: 100%; }
+.verify-card .meta { margin: 0; }
