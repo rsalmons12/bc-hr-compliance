@@ -153,6 +153,13 @@ async function employeeDashboard(view) {
       </div>
       <a class="btn" href="#/onboarding">${['submitted', 'approved'].includes(status) ? 'View my onboarding' : 'Continue onboarding'}</a>
     </section>
+    <section class="card onboarding-card">
+      <div>
+        <h2>Resume ${d.emp?.resume_path ? badge('Uploaded', 'ok') : badge('Not uploaded', 'warn')}</h2>
+        <p class="muted">${d.emp?.resume_path ? `${esc(d.emp.resume_file_name)} · ${d.work.length} previous employer${d.work.length === 1 ? '' : 's'} listed` : 'Upload your resume and list your previous employers.'}</p>
+      </div>
+      <a class="btn ${d.emp?.resume_path ? 'btn-ghost' : ''}" href="#/resume">${d.emp?.resume_path ? 'View' : 'Upload resume'}</a>
+    </section>
     ${requiredScreeningsHtml(d)}
     <div class="stats">
       ${stat('Documents to sign', toSign, '#/sign', toSign ? 'warn' : '')}

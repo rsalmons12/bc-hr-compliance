@@ -206,3 +206,18 @@ function bindEmploymentSection(view, p, file, jobs) {
   });
   on(view, '#staff-resume', 'click', () => openSignedFile('employee-files', file.resume_path, file.resume_file_name, false));
 }
+
+// ---------------------------------------------------------------------------
+// Employee page: resume and work history (same as the onboarding step, any time)
+// ---------------------------------------------------------------------------
+
+VIEWS.resume = async (view) => {
+  const d = await loadOnboarding();
+  const st = stepStatus(d);
+  view.innerHTML = `
+    ${pageHead('My resume & work history', 'Upload your resume and list your previous employers. This also counts toward your onboarding.')}
+    <div id="work"></div>`;
+  const el = view.querySelector('#work');
+  STEP_VIEWS.work(el, d, st);
+  el.querySelector('#cont')?.remove();
+};
