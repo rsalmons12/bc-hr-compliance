@@ -252,8 +252,7 @@ function bindHealthSection(view, p, rows) {
 function healthSettingsForm(c) {
   return `
     <form class="stack health-settings" data-company="${c.id}">
-      <label class="check"><input type="checkbox" name="health_screen_required" ${c.health_screen_required ? 'checked' : ''}>
-        <span>Require TB, measles and rubella screening during onboarding (e.g. New Jersey facilities)</span></label>
+      <p class="muted small">TB, measles and rubella screening is required for every employee. Set how this agency's employees book it.</p>
       <label>Instructions for employees<textarea name="health_screen_instructions" rows="2"
         placeholder="A TB test and a measles test are required before you start…">${esc(c.health_screen_instructions)}</textarea></label>
       <div class="row">
@@ -272,7 +271,6 @@ function bindHealthSettings(view) {
     const f = nullify(formData(ev.target));
     busy(ev.target, async () => {
       await q(sb.from('companies').update({
-        health_screen_required: !!f.health_screen_required,
         health_screen_paid_by_facility: !!f.health_screen_paid_by_facility,
         health_screen_instructions: f.health_screen_instructions,
         health_screen_url: f.health_screen_url,
@@ -295,7 +293,7 @@ VIEWS.screenings = async (view) => {
   view.innerHTML = `
     ${pageHead('Background check & screenings', 'Required for all employees. Your progress here also counts toward your onboarding.')}
     <div id="background"></div>
-    ${company.health_screen_required ? '<div id="health"></div>' : ''}
+    <div id="health"></div>
     ${myDrugResultsHtml(d.screens) || `<section class="card"><h2>Drug screening</h2>
       <p class="muted">Your manager performs the drug screen. Your results will appear here once they are recorded.</p></section>`}`;
 
@@ -308,3 +306,75 @@ VIEWS.screenings = async (view) => {
   renderPart('background', 'background');
   renderPart('health', 'health');
 };
+
+// ---------------------------------------------------------------------------
+// Staff page: every person's background check, drug screen and TB / measles / rubella
+// ---------------------------------------------------------------------------
+
+VIEWS.screening = async (view) => {
+  if (needsCompany(view)) return;
+  const c = state.companyId;
+  const company = currentCompany();
+  const [people, background, drugs, health] = await Promise.all([
+    q(sb.from('profiles').select('id, email, full_name, role').eq('company_id', c).neq('role', 'admin').order('full_name')),
+    q(sb.from('background_checks').select('*').eq('company_id', c).order('created_at', { ascending: false })),
+    q(sb.from('drug_screens').select('*').eq('company_id', c).order('created_at', { ascending: false })),
+    q(sb.from('health_screenings').select('*').eq('company_id', c)),
+  ]);
+  const latest = (rows, uid) => rows.find((r) => r.user_id === uid);
+
+  const healthCell = (uid) => {
+    const mine = health.filter((h) => h.user_id === uid);
+    if (healthAllCleared(mine)) return badge('Cleared', 'ok');
+    const done = HEALTH_KINDS.filter((k) => healthCleared(mine, k)).length;
+    return badge(`${done} of ${HEALTH_KINDS.length} cleared`, done ? 'warn' : 'neutral');
+  };
+
+  view.innerHTML = `
+    ${pageHead('Screenings', `${esc(companyName(c))} · background check, drug screen, TB, measles and rubella are required for everyone.`)}
+    <section class="card">
+      ${people.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Person</th><th>Background check</th><th>Drug screen</th><th>TB / measles / rubella</th><th></th></tr></thead>
+        <tbody>${people.map((p) => {
+          const b = latest(background, p.id);
+          const s = latest(drugs, p.id);
+          return `<tr>
+            <td><a href="#/employees/${p.id}"><strong>${esc(personName(p))}</strong></a><div class="muted small">${esc(ROLE_LABEL[p.role])}</div></td>
+            <td>${b ? `${backgroundBadge(b.result)} <div class="muted small">${b.appointment_date ? `Appt ${fmtDate(b.appointment_date)}` : ''}</div>` : badge('Not booked', 'warn')}</td>
+            <td>${s ? `${screenBadge(s.result)} <div class="muted small">${esc(SCREEN_TYPES[s.screen_type])} · ${fmtDate(s.result_date || s.appointment_date)}</div>` : badge('Not done', 'warn')}</td>
+            <td>${healthCell(p.id)}</td>
+            <td class="actions"><a class="btn btn-sm" href="#/employees/${p.id}">Document drug screen</a></td>
+          </tr>`;
+        }).join('')}</tbody></table></div>`
+        : '<p class="muted">No people at this agency yet.</p>'}
+    </section>`;
+};
+
+// Employee dashboard checklist: every mandatory screening with its status.
+function requiredScreeningsHtml(d) {
+  const bg = d.background[0];
+  const drug = d.screens[0];
+  const rows = [
+    ['Background check (fingerprinting)', bg
+      ? `${backgroundBadge(bg.result)} ${bg.result === 'pending' && bg.appointment_date ? `<span class="muted small">Appointment ${fmtDate(bg.appointment_date)}</span>` : ''}`
+      : badge('Book now', 'warn')],
+    ['Drug screen', drug ? screenBadge(drug.result) : '<span class="muted small">Your manager will do this with you</span>'],
+    ...HEALTH_KINDS.map((kind) => {
+      const r = latestHealth(d.health, kind);
+      let status = badge('Upload or book', 'warn');
+      if (r && r.result !== 'pending') status = healthBadge(r.result);
+      else if (r?.source === 'prior_result') status = badge('Uploaded, in review', 'info');
+      else if (r?.appointment_date) status = badge(`Appointment ${fmtDate(r.appointment_date)}`, 'info');
+      return [HEALTH_SCREENINGS[kind].label, status];
+    }),
+  ];
+  return `
+    <section class="card">
+      <div class="card-head">
+        <h2>Required screenings</h2>
+        <a class="btn btn-sm" href="#/screenings">Open screenings</a>
+      </div>
+      <p class="muted small">Mandatory for all employees. You cannot be approved to start until each one is cleared.</p>
+      <ul class="list">${rows.map(([label, status]) => `<li><span>${esc(label)}</span><span>${status}</span></li>`).join('')}</ul>
+    </section>`;
+}

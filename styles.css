@@ -307,3 +307,5 @@ fieldset.checks { display: flex; gap: 24px; flex-wrap: wrap; }
 }
 .choice-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .company-row details + details { margin-top: 4px; }
+.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 4px; }
+.card-head h2 { margin: 0; }

@@ -36,7 +36,9 @@ Every attachment version is kept and every change is logged (who, what, when). M
 - **Drug screening:** performed by the manager or BC HR and documented on the employee's file (type, date collected, result, result document). The employee can see their results on their dashboard but cannot enter anything.
 - Onboarding cannot be approved until the background check is cleared and a negative drug screen is on file.
 
-**TB, measles and rubella screening:** turn it on per agency (for New Jersey facilities) under **Client companies → TB, measles & rubella settings**. Employees either upload a result from the past 12 months or book a test the agency pays for (CVS MinuteClinic TB testing, and titer/immunity testing for measles and rubella). Staff record the results (TB negative, measles and rubella immune), valid for 12 months; onboarding cannot be approved until all three are cleared.
+**TB, measles and rubella screening:** mandatory for every employee. Employees either upload a result from the past 12 months or book a test the agency pays for (CVS MinuteClinic TB testing, and titer/immunity testing for measles and rubella); set each agency's booking link under **Client companies → TB, measles & rubella settings**. Staff record the results (TB negative, measles and rubella immune), valid for 12 months.
+
+**Mandatory screenings:** background check, drug screen, TB, measles and rubella are required for every employee. Employees see a **Required screenings** checklist on their dashboard and a **Background check & screenings** page; managers and BC HR see everyone's status on the **Screenings** page. Onboarding cannot be approved until all are cleared.
 
 **Training:**
 - Modules with lesson text, an optional YouTube / Vimeo video and PDF, and a multiple-choice quiz with a pass mark. A module can be for every agency (BC HR admins) or one agency (that agency's managers too).

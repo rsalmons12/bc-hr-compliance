@@ -53,7 +53,7 @@ const ALL_STEPS = [
   { id: 'credentials', label: 'Licenses & certifications', optional: true },
   { id: 'deposit', label: 'Direct deposit & SSN' },
   { id: 'background', label: 'Background check' },
-  { id: 'health', label: 'TB, measles & rubella', onlyIf: () => !!currentCompany().health_screen_required },
+  { id: 'health', label: 'TB, measles & rubella' },
   { id: 'sign', label: 'Sign documents' },
   { id: 'review', label: 'Review & submit' },
 ];
@@ -150,15 +150,7 @@ async function employeeDashboard(view) {
       </div>
       <a class="btn" href="#/onboarding">${['submitted', 'approved'].includes(status) ? 'View my onboarding' : 'Continue onboarding'}</a>
     </section>
-    <section class="card onboarding-card">
-      <div>
-        <h2>Background check ${d.background[0] ? backgroundBadge(d.background[0].result) : badge('Not booked', 'warn')}</h2>
-        <p class="muted">${d.background[0]?.appointment_date
-          ? `Appointment ${fmtDate(d.background[0].appointment_date)}${d.background[0].appointment_location ? ` at ${esc(d.background[0].appointment_location)}` : ''}.`
-          : 'Required for all employees. Book your fingerprinting appointment and enter the date.'}</p>
-      </div>
-      <a class="btn ${d.background[0] ? 'btn-ghost' : ''}" href="#/screenings">${d.background[0] ? 'View' : 'Book now'}</a>
-    </section>
+    ${requiredScreeningsHtml(d)}
     <div class="stats">
       ${stat('Documents to sign', toSign, '#/sign', toSign ? 'warn' : '')}
       ${stat('Training due', trainingDue.length, '#/training', trainingDue.length ? 'warn' : '')}
@@ -477,7 +469,7 @@ STEP_VIEWS.review = (el, d, st) => {
         ${row('job', 'Job description', st.job ? `Signed: ${esc(d.position.title)}` : d.position ? 'Not signed yet' : 'Position not assigned yet')}
         ${row('deposit', 'Direct deposit & SSN', e.bank_on_file && e.ssn_on_file ? 'On file' : 'Missing')}
         ${row('background', 'Background check', st.background ? 'Scheduled' : 'Not scheduled yet')}
-        ${currentCompany().health_screen_required ? row('health', 'TB, measles & rubella', st.health ? 'Booked or uploaded' : 'Not done yet') : ''}
+        ${row('health', 'TB, measles & rubella', st.health ? 'Booked or uploaded' : 'Not done yet')}
         ${row('sign', 'Documents & policies', st.sign ? 'All signed' : `${st.unsignedDocs.length + st.unackedPolicies.length} still to sign`)}
       </ul>
     </section>

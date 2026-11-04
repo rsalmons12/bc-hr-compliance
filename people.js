@@ -180,7 +180,7 @@ async function employeeDetail(view, id) {
     ${positionSectionHtml(file, jobAndScreening)}
     ${backgroundSectionHtml(jobAndScreening)}
     ${drugSectionHtml(jobAndScreening)}
-    ${agency.health_screen_required || healthRows.length ? healthSectionHtml(healthRows) : ''}
+    ${healthSectionHtml(healthRows)}
 
     <div class="grid2">
       <section class="card">
@@ -296,7 +296,7 @@ async function employeeDetail(view, id) {
       toast('Record a negative drug screening result before approving onboarding.', 'error');
       return;
     }
-    if (action === 'approved' && agency.health_screen_required && !healthAllCleared(healthRows)) {
+    if (action === 'approved' && !healthAllCleared(healthRows)) {
       toast('Record a negative TB result and measles and rubella immunity (within 12 months) before approving onboarding.', 'error');
       return;
     }

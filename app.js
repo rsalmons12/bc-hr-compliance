@@ -334,6 +334,7 @@ const NAV = [
   { route: 'credentials', label: 'My licenses & credentials', roles: ['employee'] },
   { route: 'employees', label: 'Employees', roles: STAFF },
   { route: 'expiring', label: 'Expiring credentials', roles: STAFF },
+  { route: 'screening', label: 'Screenings', roles: STAFF },
   { route: 'compliance', label: 'Agency compliance', roles: STAFF },
   { route: 'positions', label: 'Positions', roles: STAFF },
   { route: 'jobdescription', label: 'Signed job description', roles: ALL, hidden: true },
@@ -894,7 +895,7 @@ VIEWS.companies = async (view) => {
           <div class="company-head">
             <span><strong>${esc(c.name)}</strong> <span class="muted small">· added ${fmtDate(c.created_at)}</span>
               ${c.background_url ? badge('Background check link set', 'info') : badge('Background check link missing', 'warn')}
-              ${c.health_screen_required ? badge('TB, measles & rubella required', 'info') : ''}</span>
+</span>
             <button class="btn btn-sm btn-danger" data-delete="${c.id}">Delete</button>
           </div>
           <details><summary class="link">Background check settings</summary>${backgroundSettingsForm(c)}</details>
