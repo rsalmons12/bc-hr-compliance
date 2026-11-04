@@ -892,17 +892,17 @@ VIEWS.companies = async (view) => {
         <li class="company-row">
           <div class="company-head">
             <span><strong>${esc(c.name)}</strong> <span class="muted small">· added ${fmtDate(c.created_at)}</span>
-              ${c.drug_screen_url ? badge('Drug screening link set', 'info') : badge('Drug screening link missing', 'warn')}
+              ${c.background_url ? badge('Background check link set', 'info') : badge('Background check link missing', 'warn')}
               ${c.health_screen_required ? badge('TB, measles & rubella required', 'info') : ''}</span>
             <button class="btn btn-sm btn-danger" data-delete="${c.id}">Delete</button>
           </div>
-          <details><summary class="link">Drug screening settings</summary>${screeningSettingsForm(c)}</details>
+          <details><summary class="link">Background check settings</summary>${backgroundSettingsForm(c)}</details>
           <details><summary class="link">TB, measles &amp; rubella settings</summary>${healthSettingsForm(c)}</details>
         </li>`).join('')}</ul>`
         : '<p class="muted">No client companies yet.</p>'}
     </section>`;
 
-  bindScreeningSettings(view);
+  bindBackgroundSettings(view);
   bindHealthSettings(view);
 
   on(view, '#new-company', 'submit', (e) => {

@@ -52,7 +52,7 @@ const ALL_STEPS = [
   { id: 'education', label: 'Education' },
   { id: 'credentials', label: 'Licenses & certifications', optional: true },
   { id: 'deposit', label: 'Direct deposit & SSN' },
-  { id: 'drug', label: 'Drug screening' },
+  { id: 'background', label: 'Background check' },
   { id: 'health', label: 'TB, measles & rubella', onlyIf: () => !!currentCompany().health_screen_required },
   { id: 'sign', label: 'Sign documents' },
   { id: 'review', label: 'Review & submit' },
@@ -75,7 +75,7 @@ const MAX_UPLOAD = 20 * 1024 * 1024;
 async function loadOnboarding() {
   const c = state.companyId;
   const uid = state.user.id;
-  const [emp, creds, sensitive, docs, sigs, policies, acks, positionAcks, screens, health] = await Promise.all([
+  const [emp, creds, sensitive, docs, sigs, policies, acks, positionAcks, screens, health, background] = await Promise.all([
     q(sb.from('employee_profiles').select('*').eq('user_id', uid).maybeSingle()),
     q(sb.from('credentials').select('*').eq('user_id', uid).order('created_at')),
     q(sb.rpc('my_sensitive_summary')),
@@ -86,12 +86,13 @@ async function loadOnboarding() {
     q(sb.from('position_acknowledgements').select('*').eq('user_id', uid)),
     q(sb.from('drug_screens').select('*').eq('user_id', uid).order('created_at', { ascending: false })),
     q(sb.from('health_screenings').select('*').eq('user_id', uid)),
+    q(sb.from('background_checks').select('*').eq('user_id', uid).order('created_at', { ascending: false })),
   ]);
   const position = emp?.position_id
     ? await q(sb.from('positions').select('*').eq('id', emp.position_id).maybeSingle())
     : null;
   state.emp = emp;
-  return { emp, creds, sensitive: sensitive[0] || null, docs, sigs, policies, acks, position, positionAcks, screens, health };
+  return { emp, creds, sensitive: sensitive[0] || null, docs, sigs, policies, acks, position, positionAcks, screens, health, background };
 }
 
 function stepStatus(d) {
@@ -101,7 +102,7 @@ function stepStatus(d) {
   const st = {
     personal: PERSONAL_REQUIRED.every((k) => e[k]),
     job: !!(d.position && d.positionAcks.some((a) => a.position_id === d.position.id)),
-    drug: d.screens.some((s) => s.appointment_date || s.result !== 'pending'),
+    background: d.background.some((b) => b.appointment_date || b.result !== 'pending'),
     health: healthStepDone(d.health),
     education: !!e.education_level,
     credentials: d.creds.some((c) => c.kind !== 'degree'),
@@ -166,7 +167,8 @@ async function employeeDashboard(view) {
       <h2>Training to complete</h2>
       <ul class="list">${trainingDue.map((m) => `<li><a href="#/training/take/${m.id}">${esc(m.title)}</a>
         ${trainingBadge(trainingStatus(m, training))}</li>`).join('')}</ul>
-    </section>` : ''}`;
+    </section>` : ''}
+    ${myDrugResultsHtml(d.screens)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -465,7 +467,7 @@ STEP_VIEWS.review = (el, d, st) => {
           <span class="muted small">${d.creds.length} on file</span></span><a href="#/onboarding/credentials">Edit</a></li>
         ${row('job', 'Job description', st.job ? `Signed: ${esc(d.position.title)}` : d.position ? 'Not signed yet' : 'Position not assigned yet')}
         ${row('deposit', 'Direct deposit & SSN', e.bank_on_file && e.ssn_on_file ? 'On file' : 'Missing')}
-        ${row('drug', 'Drug screening', st.drug ? 'Scheduled' : 'Not scheduled yet')}
+        ${row('background', 'Background check', st.background ? 'Scheduled' : 'Not scheduled yet')}
         ${currentCompany().health_screen_required ? row('health', 'TB, measles & rubella', st.health ? 'Booked or uploaded' : 'Not done yet') : ''}
         ${row('sign', 'Documents & policies', st.sign ? 'All signed' : `${st.unsignedDocs.length + st.unackedPolicies.length} still to sign`)}
       </ul>

@@ -31,7 +31,10 @@ Every attachment version is kept and every change is logged (who, what, when). M
 - You choose a person's position when you create their login, or later on their file.
 - During onboarding the employee reads and signs their job description by typed name; their supervisor then countersigns. The signed copy keeps the exact text that was signed and can be printed or saved as PDF.
 
-**Drug screening:** turn it on per agency under **Client companies → Drug screening settings**, with the scheduling link, service code, case number and who pays. Employees at that agency get a "Drug screening" onboarding step to book and record their appointment; managers and BC HR record the result and can attach the result document.
+**Background check and drug screening:**
+- **Background check** (e.g. NJ fingerprinting through IdentoGO): a required onboarding step. Set each agency's scheduling link, service code, case number and who pays under **Client companies → Background check settings**. The employee books it and enters the appointment; managers and BC HR record the result.
+- **Drug screening:** performed by the manager or BC HR and documented on the employee's file (type, date collected, result, result document). The employee can see their results on their dashboard but cannot enter anything.
+- Onboarding cannot be approved until the background check is cleared and a negative drug screen is on file.
 
 **TB, measles and rubella screening:** turn it on per agency (for New Jersey facilities) under **Client companies → TB, measles & rubella settings**. Employees either upload a result from the past 12 months or book a test the agency pays for (CVS MinuteClinic TB testing, and titer/immunity testing for measles and rubella). Staff record the results (TB negative, measles and rubella immune), valid for 12 months; onboarding cannot be approved until all three are cleared.
 
@@ -59,6 +62,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 | `supabase/006_positions_drug_screening.sql` | Step 6: positions, job description sign-off and drug screening |
 | `supabase/007_health_screening.sql` | Step 7: TB and measles screening |
 | `supabase/008_rubella.sql` | Step 8: adds rubella |
+| `supabase/009_background_checks.sql` | Step 9: separates the background check from drug screening |
 | `supabase/functions/invite-user/index.ts` | Server function that creates logins |
 | `brand/` | Logo files |
 
@@ -82,7 +86,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 
 ## Upgrade: employee onboarding (run once)
 
-1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`, then `supabase/004_training.sql`. Run them in that order, each once. Optionally run `supabase/005_training_library.sql` afterwards to add the starter training library (created inactive for review). Then run `supabase/006_positions_drug_screening.sql`, then `supabase/007_health_screening.sql`, then `supabase/008_rubella.sql`.
+1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`, then `supabase/004_training.sql`. Run them in that order, each once. Optionally run `supabase/005_training_library.sql` afterwards to add the starter training library (created inactive for review). Then run `supabase/006_positions_drug_screening.sql`, then `supabase/007_health_screening.sql`, then `supabase/008_rubella.sql`, then `supabase/009_background_checks.sql`.
 
 **This repository is public.** Keep client-specific data (job descriptions, addresses, codes) out of it: load it through the portal, or run a private SQL file in Supabase without committing it.
 2. **Create-login function** (required for the **Users** page).

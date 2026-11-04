@@ -1,5 +1,5 @@
 // Positions (job descriptions), job description sign-off with supervisor countersignature,
-// and drug screening (agency instructions, employee appointment, staff-recorded result).
+// the background check (employee books it) and drug screening (staff perform and record it).
 
 const SCREEN_TYPES = {
   pre_employment: 'Pre-employment',
@@ -251,68 +251,92 @@ STEP_VIEWS.job = (el, d, st) => {
   on(el, '#cont', 'submit', (ev) => { ev.preventDefault(); goStep(nextStep('job')); });
 };
 
-function screeningInstructions(company) {
-  if (!company.drug_screen_url && !company.drug_screen_instructions) {
-    return `<div class="screening-box"><p>Drug screening is required for all employees. Your manager or BC HR &amp; Compliance
-      will tell you where to go. Once you have an appointment, enter it below.</p></div>`;
+// ---------------------------------------------------------------------------
+// Background check (employee books it during onboarding; staff record the result)
+// ---------------------------------------------------------------------------
+
+const BACKGROUND_RESULTS = { pending: 'Pending', cleared: 'Cleared', not_cleared: 'Not cleared', cancelled: 'Cancelled' };
+const backgroundBadge = (r) => badge(BACKGROUND_RESULTS[r], { pending: 'warn', cleared: 'ok', not_cleared: 'danger', cancelled: 'neutral' }[r]);
+
+function backgroundInstructions(company) {
+  if (!company.background_url && !company.background_instructions) {
+    return `<div class="screening-box"><p>A background check is required for all employees. Your manager or BC HR &amp; Compliance
+      will tell you how to schedule it. Once you have an appointment, enter it below.</p></div>`;
   }
   return `
     <div class="screening-box">
-      ${company.drug_screen_instructions ? `<p>${esc(company.drug_screen_instructions)}</p>` : ''}
+      ${company.background_instructions ? `<p>${esc(company.background_instructions)}</p>` : ''}
       <dl class="meta">
-        ${company.drug_screen_service_code ? `<dt>Service code</dt><dd class="mono">${esc(company.drug_screen_service_code)}</dd>` : ''}
-        ${company.drug_screen_case_number ? `<dt>Case number</dt><dd class="mono">${esc(company.drug_screen_case_number)}</dd>` : ''}
-        <dt>Cost</dt><dd>${company.drug_screen_paid_by_facility ? 'Paid by the facility' : 'See instructions'}</dd>
+        ${company.background_service_code ? `<dt>Service code</dt><dd class="mono">${esc(company.background_service_code)}</dd>` : ''}
+        ${company.background_case_number ? `<dt>Case number</dt><dd class="mono">${esc(company.background_case_number)}</dd>` : ''}
+        <dt>Cost</dt><dd>${company.background_paid_by_facility ? 'Paid by the facility' : 'See instructions'}</dd>
       </dl>
-      ${company.drug_screen_url ? `<a class="btn" href="${esc(company.drug_screen_url)}" target="_blank" rel="noopener">Schedule my appointment ↗</a>` : ''}
+      ${company.background_url ? `<a class="btn" href="${esc(company.background_url)}" target="_blank" rel="noopener">Schedule my appointment ↗</a>` : ''}
     </div>`;
 }
 
-STEP_VIEWS.drug = (el, d, st) => {
+STEP_VIEWS.background = (el, d, st) => {
   const company = currentCompany();
-  const screen = d.screens[0];
+  const check = d.background[0];
   el.innerHTML = `
     <section class="card">
-      <h2>Drug screening</h2>
-      ${screeningInstructions(company)}
+      <h2>Background check</h2>
+      ${backgroundInstructions(company)}
     </section>
     <form id="appointment" class="card stack">
       <h2>Your appointment</h2>
-      ${screen && screen.result !== 'pending'
-        ? `<p>Result recorded: ${screenBadge(screen.result)} ${screen.result_date ? fmtDate(screen.result_date) : ''}</p>`
+      ${check && check.result !== 'pending'
+        ? `<p>Result recorded: ${backgroundBadge(check.result)} ${check.result_date ? fmtDate(check.result_date) : ''}</p>`
         : `<p class="muted small">After you book, enter your appointment here so your manager knows it is scheduled.</p>
       <div class="row">
-        ${input('Appointment date *', 'appointment_date', screen?.appointment_date, `type="date" required min="${today()}"`)}
-        ${input('Location', 'appointment_location', screen?.appointment_location, 'placeholder="e.g. IdentoGO, Manahawkin"')}
+        ${input('Appointment date *', 'appointment_date', check?.appointment_date, `type="date" required min="${today()}"`)}
+        ${input('Location', 'appointment_location', check?.appointment_location, 'placeholder="e.g. IdentoGO, Manahawkin"')}
       </div>
-      <button type="submit" class="btn">${screen ? 'Update appointment' : 'Save appointment'}</button>`}
+      <button type="submit" class="btn">${check ? 'Update appointment' : 'Save appointment'}</button>`}
     </form>
-    <form id="cont">${stepActions('drug', { continueLabel: 'Continue', disabled: !st.drug })}</form>`;
+    <form id="cont">${stepActions('background', { continueLabel: 'Continue', disabled: !st.background })}</form>`;
 
   on(el, '#appointment', 'submit', (ev) => {
     ev.preventDefault();
     const f = nullify(formData(ev.target));
     busy(ev.target, async () => {
-      if (screen) await q(sb.from('drug_screens').update(f).eq('id', screen.id));
-      else await q(sb.from('drug_screens').insert({ ...f, user_id: state.user.id }));
+      if (check) await q(sb.from('background_checks').update(f).eq('id', check.id));
+      else await q(sb.from('background_checks').insert({ ...f, user_id: state.user.id }));
       toast('Appointment saved.');
       renderRoute();
     });
   });
-  on(el, '#cont', 'submit', (ev) => { ev.preventDefault(); goStep(nextStep('drug')); });
+  on(el, '#cont', 'submit', (ev) => { ev.preventDefault(); goStep(nextStep('background')); });
 };
+
+// Employee's own drug screening results (read-only; managers perform and record them).
+function myDrugResultsHtml(screens) {
+  if (!screens.length) return '';
+  return `
+    <section class="card">
+      <h2>My drug screening results</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Type</th><th>Date</th><th>Result</th></tr></thead>
+        <tbody>${screens.map((s) => `
+          <tr><td>${esc(SCREEN_TYPES[s.screen_type])}</td>
+            <td>${fmtDate(s.result_date || s.appointment_date) || '—'}</td>
+            <td>${screenBadge(s.result)}</td></tr>`).join('')}
+        </tbody></table></div>
+    </section>`;
+}
 
 // ---------------------------------------------------------------------------
 // Employee file sections (staff)
 // ---------------------------------------------------------------------------
 
 async function loadPositionAndScreening(p) {
-  const [positions, acks, screens] = await Promise.all([
+  const [positions, acks, screens, background] = await Promise.all([
     q(sb.from('positions').select('*').eq('company_id', p.company_id).order('title')),
     q(sb.from('position_acknowledgements').select('*').eq('user_id', p.id).order('signed_at', { ascending: false })),
     q(sb.from('drug_screens').select('*').eq('user_id', p.id).order('created_at', { ascending: false })),
+    q(sb.from('background_checks').select('*').eq('user_id', p.id).order('created_at', { ascending: false })),
   ]);
-  return { positions, acks, screens };
+  return { positions, acks, screens, background };
 }
 
 function positionSectionHtml(file, data) {
@@ -338,12 +362,55 @@ function positionSectionHtml(file, data) {
     </section>`;
 }
 
-function drugSectionHtml(company, data) {
+function backgroundSectionHtml(data) {
+  const cleared = data.background.some((b) => b.result === 'cleared');
+  return `
+    <section class="card">
+      <h2>Background check ${cleared ? badge('Cleared', 'ok') : badge('Required before approval', 'warn')}</h2>
+      ${data.background.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Appointment</th><th>Result</th><th></th></tr></thead>
+        <tbody>${data.background.map((b) => `
+          <tr>
+            <td>${b.appointment_date ? fmtDate(b.appointment_date) : '—'}<div class="muted small">${esc(b.appointment_location || '')}</div></td>
+            <td>${backgroundBadge(b.result)} ${b.result_date ? `<span class="muted small">${fmtDate(b.result_date)}</span>` : ''}
+              ${b.notes ? `<div class="muted small">${esc(b.notes)}</div>` : ''}</td>
+            <td class="actions">
+              ${b.file_path ? `<button class="btn btn-sm btn-ghost" data-bg-file="${b.id}">Result file</button>` : ''}
+              <button class="btn btn-sm" data-bg-edit="${b.id}">Record result</button>
+            </td>
+          </tr>`).join('')}
+        </tbody></table></div>` : '<p class="muted">The employee has not booked their background check yet.</p>'}
+      <details class="cred-form" id="bg-form-wrap">
+        <summary class="btn btn-ghost">+ Add a background check record</summary>
+        ${backgroundForm({})}
+      </details>
+    </section>`;
+}
+
+function backgroundForm(b) {
+  return `
+    <form class="stack" id="bg-form" data-id="${b.id || ''}">
+      <div class="row">
+        ${input('Appointment date', 'appointment_date', b.appointment_date, 'type="date"')}
+        ${input('Location', 'appointment_location', b.appointment_location)}
+      </div>
+      <div class="row">
+        <label>Result<select name="result">${options(BACKGROUND_RESULTS, b.result || 'pending')}</select></label>
+        ${input('Result date', 'result_date', b.result_date, 'type="date"')}
+        <label>Result document<input type="file" name="file" accept="application/pdf,image/*"></label>
+      </div>
+      <label>Notes (staff only)<textarea name="notes" rows="2">${esc(b.notes)}</textarea></label>
+      <button type="submit" class="btn">Save</button>
+    </form>`;
+}
+
+function drugSectionHtml(data) {
   return `
     <section class="card">
       <h2>Drug screening ${data.screens.some((s) => s.result === 'negative') ? badge('Cleared', 'ok') : badge('Required before approval', 'warn')}</h2>
+      <p class="muted small">Performed by the manager or BC HR. The employee can see the results on their dashboard.</p>
       ${data.screens.length ? `<div class="table-wrap"><table>
-        <thead><tr><th>Type</th><th>Appointment</th><th>Result</th><th></th></tr></thead>
+        <thead><tr><th>Type</th><th>Collected</th><th>Result</th><th></th></tr></thead>
         <tbody>${data.screens.map((s) => `
           <tr>
             <td>${esc(SCREEN_TYPES[s.screen_type])}</td>
@@ -352,12 +419,12 @@ function drugSectionHtml(company, data) {
               ${s.notes ? `<div class="muted small">${esc(s.notes)}</div>` : ''}</td>
             <td class="actions">
               ${s.file_path ? `<button class="btn btn-sm btn-ghost" data-screen-file="${s.id}">Result file</button>` : ''}
-              <button class="btn btn-sm" data-screen-edit="${s.id}">Record result</button>
+              <button class="btn btn-sm" data-screen-edit="${s.id}">Update</button>
             </td>
           </tr>`).join('')}
-        </tbody></table></div>` : '<p class="muted">No screening scheduled yet.</p>'}
+        </tbody></table></div>` : '<p class="muted">No drug screen documented yet.</p>'}
       <details class="cred-form" id="screen-form-wrap">
-        <summary class="btn btn-ghost">+ Add a screening</summary>
+        <summary class="btn btn-ghost">+ Document a drug screen</summary>
         ${screenForm({})}
       </details>
     </section>`;
@@ -368,8 +435,8 @@ function screenForm(s) {
     <form class="stack" id="screen-form" data-id="${s.id || ''}">
       <div class="row">
         <label>Type<select name="screen_type">${options(SCREEN_TYPES, s.screen_type || 'pre_employment')}</select></label>
-        ${input('Appointment date', 'appointment_date', s.appointment_date, 'type="date"')}
-        ${input('Location', 'appointment_location', s.appointment_location)}
+        ${input('Date collected', 'appointment_date', s.appointment_date || (s.id ? '' : today()), 'type="date"')}
+        ${input('Collected by / where', 'appointment_location', s.appointment_location, 'placeholder="e.g. On site, Maria Lopez"')}
       </div>
       <div class="row">
         <label>Result<select name="result">${options(SCREEN_RESULTS, s.result || 'pending')}</select></label>
@@ -379,6 +446,44 @@ function screenForm(s) {
       <label>Notes (staff only)<textarea name="notes" rows="2">${esc(s.notes)}</textarea></label>
       <button type="submit" class="btn">Save</button>
     </form>`;
+}
+
+// One handler for the staff record forms (drug screen and background check).
+function bindRecordForm(view, { formId, wrapId, table, rows, editAttr, fileAttr, editTitle, p }) {
+  const bindForm = () => on(view, `#${formId}`, 'submit', (ev) => {
+    ev.preventDefault();
+    const f = nullify(formData(ev.target));
+    const fileInput = ev.target.file.files[0];
+    const existingId = ev.target.dataset.id;
+    delete f.file;
+    busy(ev.target, async () => {
+      if (fileInput) {
+        if (fileInput.size > MAX_UPLOAD) throw new Error('Files must be smaller than 20 MB.');
+        f.file_path = `${p.company_id}/${p.id}/${crypto.randomUUID()}-${safeName(fileInput.name)}`;
+        f.file_name = fileInput.name;
+        await q(sb.storage.from('employee-files').upload(f.file_path, fileInput));
+      }
+      if (existingId) await q(sb.from(table).update(f).eq('id', existingId));
+      else await q(sb.from(table).insert({ ...f, user_id: p.id }));
+      toast('Saved.');
+      renderRoute();
+    });
+  });
+  bindForm();
+
+  on(view, `[${editAttr}]`, 'click', (ev) => {
+    const r = rows.find((x) => x.id === ev.currentTarget.getAttribute(editAttr));
+    const wrap = view.querySelector(`#${wrapId}`);
+    wrap.querySelector('summary').textContent = editTitle;
+    wrap.querySelector(`#${formId}`).outerHTML = table === 'drug_screens' ? screenForm(r) : backgroundForm(r);
+    wrap.open = true;
+    bindForm();
+    wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  on(view, `[${fileAttr}]`, 'click', (ev) => {
+    const r = rows.find((x) => x.id === ev.currentTarget.getAttribute(fileAttr));
+    openSignedFile('employee-files', r.file_path, r.file_name, false);
+  });
 }
 
 function bindPositionAndScreening(view, p, file, data) {
@@ -395,78 +500,52 @@ function bindPositionAndScreening(view, p, file, data) {
     });
   });
 
-  const bindScreenForm = () => on(view, '#screen-form', 'submit', (ev) => {
-    ev.preventDefault();
-    const f = nullify(formData(ev.target));
-    const fileInput = ev.target.file.files[0];
-    const existingId = ev.target.dataset.id;
-    delete f.file;
-    busy(ev.target, async () => {
-      if (fileInput) {
-        if (fileInput.size > MAX_UPLOAD) throw new Error('Files must be smaller than 20 MB.');
-        f.file_path = `${p.company_id}/${p.id}/${crypto.randomUUID()}-${safeName(fileInput.name)}`;
-        f.file_name = fileInput.name;
-        await q(sb.storage.from('employee-files').upload(f.file_path, fileInput));
-      }
-      if (existingId) await q(sb.from('drug_screens').update(f).eq('id', existingId));
-      else await q(sb.from('drug_screens').insert({ ...f, user_id: p.id }));
-      toast('Screening saved.');
-      renderRoute();
-    });
+  bindRecordForm(view, {
+    formId: 'screen-form', wrapId: 'screen-form-wrap', table: 'drug_screens', rows: data.screens,
+    editAttr: 'data-screen-edit', fileAttr: 'data-screen-file', editTitle: 'Update drug screen', p,
   });
-  bindScreenForm();
-
-  on(view, '[data-screen-edit]', 'click', (ev) => {
-    const s = data.screens.find((x) => x.id === ev.currentTarget.dataset.screenEdit);
-    const wrap = view.querySelector('#screen-form-wrap');
-    wrap.querySelector('summary').textContent = 'Record screening result';
-    wrap.querySelector('#screen-form').outerHTML = screenForm(s);
-    wrap.open = true;
-    bindScreenForm();
-    wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
-  on(view, '[data-screen-file]', 'click', (ev) => {
-    const s = data.screens.find((x) => x.id === ev.currentTarget.dataset.screenFile);
-    openSignedFile('employee-files', s.file_path, s.file_name, false);
+  bindRecordForm(view, {
+    formId: 'bg-form', wrapId: 'bg-form-wrap', table: 'background_checks', rows: data.background,
+    editAttr: 'data-bg-edit', fileAttr: 'data-bg-file', editTitle: 'Record background check result', p,
   });
 }
 
 // ---------------------------------------------------------------------------
-// Admin: per-agency drug screening settings (shown on Client companies)
+// Admin: per-agency background check settings (shown on Client companies)
 // ---------------------------------------------------------------------------
 
-function screeningSettingsForm(c) {
+function backgroundSettingsForm(c) {
   return `
-    <form class="stack screening-settings" data-company="${c.id}">
-      <p class="muted small">Drug screening is a required onboarding step for every employee. Add where and how this agency's
-        employees schedule it.</p>
-      <label>Instructions for employees<textarea name="drug_screen_instructions" rows="2">${esc(c.drug_screen_instructions)}</textarea></label>
+    <form class="stack background-settings" data-company="${c.id}">
+      <p class="muted small">The background check is a required onboarding step for every employee. Add where and how this
+        agency's employees schedule it (e.g. IdentoGO fingerprinting).</p>
+      <label>Instructions for employees<textarea name="background_instructions" rows="2">${esc(c.background_instructions)}</textarea></label>
       <div class="row">
-        ${input('Scheduling link', 'drug_screen_url', c.drug_screen_url, 'type="url" placeholder="https://…"')}
-        ${input('Service code', 'drug_screen_service_code', c.drug_screen_service_code)}
-        ${input('Case number', 'drug_screen_case_number', c.drug_screen_case_number)}
+        ${input('Scheduling link', 'background_url', c.background_url, 'type="url" placeholder="https://…"')}
+        ${input('Service code', 'background_service_code', c.background_service_code)}
+        ${input('Case number', 'background_case_number', c.background_case_number)}
       </div>
-      <label class="check"><input type="checkbox" name="drug_screen_paid_by_facility" ${c.drug_screen_paid_by_facility ? 'checked' : ''}>
+      <label class="check"><input type="checkbox" name="background_paid_by_facility" ${c.background_paid_by_facility ? 'checked' : ''}>
         <span>The facility covers the cost</span></label>
-      <button type="submit" class="btn btn-sm">Save screening settings</button>
+      <button type="submit" class="btn btn-sm">Save background check settings</button>
     </form>`;
 }
 
-function bindScreeningSettings(view) {
-  on(view, 'form.screening-settings', 'submit', (ev) => {
+function bindBackgroundSettings(view) {
+  on(view, 'form.background-settings', 'submit', (ev) => {
     ev.preventDefault();
     const f = nullify(formData(ev.target));
     const row = {
-      drug_screen_paid_by_facility: !!f.drug_screen_paid_by_facility,
-      drug_screen_instructions: f.drug_screen_instructions,
-      drug_screen_url: f.drug_screen_url,
-      drug_screen_service_code: f.drug_screen_service_code,
-      drug_screen_case_number: f.drug_screen_case_number,
+      background_paid_by_facility: !!f.background_paid_by_facility,
+      background_instructions: f.background_instructions,
+      background_url: f.background_url,
+      background_service_code: f.background_service_code,
+      background_case_number: f.background_case_number,
     };
     busy(ev.target, async () => {
       await q(sb.from('companies').update(row).eq('id', ev.target.dataset.company));
       await reloadCompanies();
-      toast('Screening settings saved.');
+      toast('Background check settings saved.');
     });
   });
 }

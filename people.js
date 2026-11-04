@@ -178,7 +178,8 @@ async function employeeDetail(view, id) {
     </form>
 
     ${positionSectionHtml(file, jobAndScreening)}
-    ${drugSectionHtml(agency, jobAndScreening)}
+    ${backgroundSectionHtml(jobAndScreening)}
+    ${drugSectionHtml(jobAndScreening)}
     ${agency.health_screen_required || healthRows.length ? healthSectionHtml(healthRows) : ''}
 
     <div class="grid2">
@@ -287,6 +288,10 @@ async function employeeDetail(view, id) {
       return;
     }
     // Drug screening is mandatory: a negative result must be on file before approval.
+    if (action === 'approved' && !jobAndScreening.background.some((b) => b.result === 'cleared')) {
+      toast('Record a cleared background check before approving onboarding.', 'error');
+      return;
+    }
     if (action === 'approved' && !jobAndScreening.screens.some((s) => s.result === 'negative')) {
       toast('Record a negative drug screening result before approving onboarding.', 'error');
       return;
