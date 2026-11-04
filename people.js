@@ -147,7 +147,10 @@ async function employeeDetail(view, id) {
   ]);
   const requiredTraining = modules.filter((m) => isRequiredFor(m, p.role));
   const outsideTraining = training.filter((t) => t.source === 'external');
-  const jobAndScreening = await loadPositionAndScreening(p);
+  const [jobAndScreening, healthRows] = await Promise.all([
+    loadPositionAndScreening(p),
+    q(sb.from('health_screenings').select('*').eq('user_id', p.id).order('created_at', { ascending: false })),
+  ]);
   const agency = state.companies.find((c) => c.id === p.company_id) || {};
   const e = file || {};
   const dl = (pairs) => `<dl class="meta">${pairs.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v ? esc(v) : '<span class="muted">—</span>'}</dd>`).join('')}</dl>`;
@@ -176,6 +179,7 @@ async function employeeDetail(view, id) {
 
     ${positionSectionHtml(file, jobAndScreening)}
     ${drugSectionHtml(agency, jobAndScreening)}
+    ${agency.health_screen_required || healthRows.length ? healthSectionHtml(healthRows) : ''}
 
     <div class="grid2">
       <section class="card">
@@ -267,6 +271,7 @@ async function employeeDetail(view, id) {
     </section>`;
 
   bindPositionAndScreening(view, p, file, jobAndScreening);
+  bindHealthSection(view, p, healthRows);
 
   on(view, '[data-tcert]', 'click', (ev) => {
     const t = outsideTraining.find((x) => x.id === ev.currentTarget.dataset.tcert);
@@ -284,6 +289,11 @@ async function employeeDetail(view, id) {
     // Drug screening is mandatory: a negative result must be on file before approval.
     if (action === 'approved' && !jobAndScreening.screens.some((s) => s.result === 'negative')) {
       toast('Record a negative drug screening result before approving onboarding.', 'error');
+      return;
+    }
+    if (action === 'approved' && agency.health_screen_required
+        && !(healthCleared(healthRows, 'tb') && healthCleared(healthRows, 'measles'))) {
+      toast('Record a negative TB result and measles immunity (within 12 months) before approving onboarding.', 'error');
       return;
     }
     busy(ev.target, async () => {

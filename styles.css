@@ -305,3 +305,5 @@ fieldset.checks { display: flex; gap: 24px; flex-wrap: wrap; }
 @media print {
   .jd-print { border: 0; padding: 0; }
 }
+.choice-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.company-row details + details { margin-top: 4px; }
