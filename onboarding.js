@@ -150,6 +150,15 @@ async function employeeDashboard(view) {
       </div>
       <a class="btn" href="#/onboarding">${['submitted', 'approved'].includes(status) ? 'View my onboarding' : 'Continue onboarding'}</a>
     </section>
+    <section class="card onboarding-card">
+      <div>
+        <h2>Background check ${d.background[0] ? backgroundBadge(d.background[0].result) : badge('Not booked', 'warn')}</h2>
+        <p class="muted">${d.background[0]?.appointment_date
+          ? `Appointment ${fmtDate(d.background[0].appointment_date)}${d.background[0].appointment_location ? ` at ${esc(d.background[0].appointment_location)}` : ''}.`
+          : 'Required for all employees. Book your fingerprinting appointment and enter the date.'}</p>
+      </div>
+      <a class="btn ${d.background[0] ? 'btn-ghost' : ''}" href="#/screenings">${d.background[0] ? 'View' : 'Book now'}</a>
+    </section>
     <div class="stats">
       ${stat('Documents to sign', toSign, '#/sign', toSign ? 'warn' : '')}
       ${stat('Training due', trainingDue.length, '#/training', trainingDue.length ? 'warn' : '')}

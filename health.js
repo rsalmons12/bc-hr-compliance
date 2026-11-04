@@ -282,3 +282,29 @@ function bindHealthSettings(view) {
     });
   });
 }
+
+// ---------------------------------------------------------------------------
+// Employee page: background check, TB / measles / rubella, drug screening results
+// (the same forms as the onboarding steps, without the step navigation)
+// ---------------------------------------------------------------------------
+
+VIEWS.screenings = async (view) => {
+  const d = await loadOnboarding();
+  const st = stepStatus(d);
+  const company = currentCompany();
+  view.innerHTML = `
+    ${pageHead('Background check & screenings', 'Required for all employees. Your progress here also counts toward your onboarding.')}
+    <div id="background"></div>
+    ${company.health_screen_required ? '<div id="health"></div>' : ''}
+    ${myDrugResultsHtml(d.screens) || `<section class="card"><h2>Drug screening</h2>
+      <p class="muted">Your manager performs the drug screen. Your results will appear here once they are recorded.</p></section>`}`;
+
+  const renderPart = (id, step) => {
+    const el = view.querySelector(`#${id}`);
+    if (!el) return;
+    STEP_VIEWS[step](el, d, st);
+    el.querySelector('#cont')?.remove();
+  };
+  renderPart('background', 'background');
+  renderPart('health', 'health');
+};

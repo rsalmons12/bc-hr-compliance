@@ -330,6 +330,7 @@ const STAFF = ['admin', 'manager'];
 const NAV = [
   { route: 'dashboard', label: 'Dashboard', roles: ALL },
   { route: 'onboarding', label: 'My onboarding', roles: ['employee'] },
+  { route: 'screenings', label: 'Background check & screenings', roles: ['employee'] },
   { route: 'credentials', label: 'My licenses & credentials', roles: ['employee'] },
   { route: 'employees', label: 'Employees', roles: STAFF },
   { route: 'expiring', label: 'Expiring credentials', roles: STAFF },
