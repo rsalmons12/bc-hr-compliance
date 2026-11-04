@@ -147,6 +147,8 @@ async function employeeDetail(view, id) {
   ]);
   const requiredTraining = modules.filter((m) => isRequiredFor(m, p.role));
   const outsideTraining = training.filter((t) => t.source === 'external');
+  const jobAndScreening = await loadPositionAndScreening(p);
+  const agency = state.companies.find((c) => c.id === p.company_id) || {};
   const e = file || {};
   const dl = (pairs) => `<dl class="meta">${pairs.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v ? esc(v) : '<span class="muted">—</span>'}</dd>`).join('')}</dl>`;
   const address = [e.address_line1, e.address_line2, [e.city, e.state, e.zip].filter(Boolean).join(', ')].filter(Boolean).join('\n');
@@ -171,6 +173,9 @@ async function employeeDetail(view, id) {
           <button type="submit" class="btn" data-action="approved">Approve onboarding</button>` : ''}
       </div>
     </form>
+
+    ${positionSectionHtml(file, jobAndScreening)}
+    ${agency.drug_screen_required || jobAndScreening.screens.length ? drugSectionHtml(agency, jobAndScreening) : ''}
 
     <div class="grid2">
       <section class="card">
@@ -260,6 +265,8 @@ async function employeeDetail(view, id) {
               <td class="actions">${t.file_path ? `<button class="btn btn-sm btn-ghost" data-tcert="${t.id}">Certificate</button>` : ''}</td></tr>`).join('')}
         </tbody></table></div>` : '<p class="muted">No required training or training records yet.</p>'}
     </section>`;
+
+  bindPositionAndScreening(view, p, file, jobAndScreening);
 
   on(view, '[data-tcert]', 'click', (ev) => {
     const t = outsideTraining.find((x) => x.id === ev.currentTarget.dataset.tcert);
@@ -459,7 +466,14 @@ VIEWS.users = async (view) => {
   const peopleQuery = isAdmin()
     ? sb.from('profiles').select('*').order('email')
     : sb.from('profiles').select('*').eq('company_id', state.companyId).order('email');
-  const [people, pending] = await Promise.all([q(peopleQuery), q(sb.from('invites').select('*').order('created_at'))]);
+  const [people, pending, positions] = await Promise.all([
+    q(peopleQuery),
+    q(sb.from('invites').select('*').order('created_at')),
+    q(sb.from('positions').select('id, title, company_id').eq('active', true).order('title')),
+  ]);
+  const positionOptions = (companyId) => `<option value="">— Choose later —</option>${positions
+    .filter((x) => x.company_id === companyId)
+    .map((x) => `<option value="${x.id}">${esc(x.title)}</option>`).join('')}`;
   const unassigned = '<option value="">— No company —</option>';
   const roleChoices = isAdmin()
     ? { employee: 'Employee', manager: 'Manager (agency management)' }
@@ -479,6 +493,7 @@ VIEWS.users = async (view) => {
           ${isAdmin()
             ? `<label>Company *<select name="company_id" required>${companyOptions(state.companyId)}</select></label>`
             : `<input type="hidden" name="company_id" value="${esc(state.companyId)}">`}
+          <label>Position<select name="position_id">${positionOptions(state.companyId)}</select></label>
           <label>Temporary password *
             <span class="input-with-button">
               <input name="password" required minlength="8" autocomplete="off" value="${tempPassword()}">
@@ -521,13 +536,28 @@ VIEWS.users = async (view) => {
     </section>`;
 
   on(view, '#regen', 'click', () => { view.querySelector('#add-user [name=password]').value = tempPassword(); });
+  on(view, '#add-user [name=company_id]', 'change', (e) => {
+    view.querySelector('#add-user [name=position_id]').innerHTML = positionOptions(e.target.value);
+  });
 
   on(view, '#add-user', 'submit', (e) => {
     e.preventDefault();
     const f = formData(e.target);
     f.email = f.email.trim().toLowerCase();
     busy(e.target, async () => {
-      const result = await addUser(f);
+      const { position_id: positionId, ...account } = f;
+      const result = await addUser(account);
+      if (positionId) {
+        // Put the new person in their position so they sign the right job description.
+        const person = await q(sb.from('profiles').select('id').ilike('email', f.email).maybeSingle());
+        const position = positions.find((x) => x.id === positionId);
+        if (person) {
+          await q(sb.from('employee_profiles').upsert(
+            { user_id: person.id, position_id: positionId, job_title: position?.title || null },
+            { onConflict: 'user_id' },
+          ));
+        }
+      }
       const box = view.querySelector('#created');
       if (result?.existing) {
         box.innerHTML = `<div class="notice info">${esc(f.email)} already has a login. Their role and company have been updated;

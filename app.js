@@ -334,6 +334,8 @@ const NAV = [
   { route: 'employees', label: 'Employees', roles: STAFF },
   { route: 'expiring', label: 'Expiring credentials', roles: STAFF },
   { route: 'compliance', label: 'Agency compliance', roles: STAFF },
+  { route: 'positions', label: 'Positions', roles: STAFF },
+  { route: 'jobdescription', label: 'Signed job description', roles: ALL, hidden: true },
   { route: 'training', label: 'Training', roles: ALL },
   { route: 'sign', label: 'Documents to sign', roles: ALL },
   { route: 'policies', label: 'Policies', roles: ALL },
@@ -380,7 +382,7 @@ function renderApp() {
       <aside class="sidebar">
         ${brand()}
         <nav id="nav">
-          ${NAV.filter((n) => n.roles.includes(role()))
+          ${NAV.filter((n) => n.roles.includes(role()) && !n.hidden)
             .map((n) => `<a href="#/${n.route}" data-route="${n.route}">${esc(n.label)}</a>`).join('')}
         </nav>
       </aside>
@@ -887,10 +889,18 @@ VIEWS.companies = async (view) => {
     </form>
     <section class="card">
       ${state.companies.length ? `<ul class="list">${state.companies.map((c) => `
-        <li><span><strong>${esc(c.name)}</strong> <span class="muted small">· added ${fmtDate(c.created_at)}</span></span>
-          <button class="btn btn-sm btn-danger" data-delete="${c.id}">Delete</button></li>`).join('')}</ul>`
+        <li class="company-row">
+          <div class="company-head">
+            <span><strong>${esc(c.name)}</strong> <span class="muted small">· added ${fmtDate(c.created_at)}</span>
+              ${c.drug_screen_required ? badge('Drug screening required', 'info') : ''}</span>
+            <button class="btn btn-sm btn-danger" data-delete="${c.id}">Delete</button>
+          </div>
+          <details><summary class="link">Drug screening settings</summary>${screeningSettingsForm(c)}</details>
+        </li>`).join('')}</ul>`
         : '<p class="muted">No client companies yet.</p>'}
     </section>`;
+
+  bindScreeningSettings(view);
 
   on(view, '#new-company', 'submit', (e) => {
     e.preventDefault();

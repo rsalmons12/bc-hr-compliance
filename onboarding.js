@@ -46,14 +46,19 @@ function onboardingBadge(status) {
   return badge(label, kind);
 }
 
-const STEPS = [
+const ALL_STEPS = [
   { id: 'personal', label: 'Personal details' },
+  { id: 'job', label: 'Job description' },
   { id: 'education', label: 'Education' },
   { id: 'credentials', label: 'Licenses & certifications', optional: true },
   { id: 'deposit', label: 'Direct deposit & SSN' },
+  { id: 'drug', label: 'Drug screening', onlyIf: () => !!currentCompany().drug_screen_required },
   { id: 'sign', label: 'Sign documents' },
   { id: 'review', label: 'Review & submit' },
 ];
+
+// Steps that apply to this employee's agency (drug screening is per agency).
+const steps = () => ALL_STEPS.filter((s) => !s.onlyIf || s.onlyIf());
 
 const PERSONAL_REQUIRED = [
   'legal_first_name', 'legal_last_name', 'date_of_birth', 'phone',
@@ -69,7 +74,7 @@ const MAX_UPLOAD = 20 * 1024 * 1024;
 async function loadOnboarding() {
   const c = state.companyId;
   const uid = state.user.id;
-  const [emp, creds, sensitive, docs, sigs, policies, acks] = await Promise.all([
+  const [emp, creds, sensitive, docs, sigs, policies, acks, positionAcks, screens] = await Promise.all([
     q(sb.from('employee_profiles').select('*').eq('user_id', uid).maybeSingle()),
     q(sb.from('credentials').select('*').eq('user_id', uid).order('created_at')),
     q(sb.rpc('my_sensitive_summary')),
@@ -77,9 +82,14 @@ async function loadOnboarding() {
     q(sb.from('signatures').select('*').eq('user_id', uid)),
     q(sb.from('policies').select('id, title, body, created_at').eq('company_id', c).order('created_at')),
     q(sb.from('policy_acknowledgements').select('*').eq('user_id', uid)),
+    q(sb.from('position_acknowledgements').select('*').eq('user_id', uid)),
+    q(sb.from('drug_screens').select('*').eq('user_id', uid).order('created_at', { ascending: false })),
   ]);
+  const position = emp?.position_id
+    ? await q(sb.from('positions').select('*').eq('id', emp.position_id).maybeSingle())
+    : null;
   state.emp = emp;
-  return { emp, creds, sensitive: sensitive[0] || null, docs, sigs, policies, acks };
+  return { emp, creds, sensitive: sensitive[0] || null, docs, sigs, policies, acks, position, positionAcks, screens };
 }
 
 function stepStatus(d) {
@@ -88,6 +98,8 @@ function stepStatus(d) {
   const unackedPolicies = d.policies.filter((p) => !d.acks.some((a) => a.policy_id === p.id));
   const st = {
     personal: PERSONAL_REQUIRED.every((k) => e[k]),
+    job: !!(d.position && d.positionAcks.some((a) => a.position_id === d.position.id)),
+    drug: d.screens.some((s) => s.appointment_date || s.result !== 'pending'),
     education: !!e.education_level,
     credentials: d.creds.some((c) => c.kind !== 'degree'),
     deposit: !!(e.ssn_on_file && e.bank_on_file),
@@ -96,7 +108,7 @@ function stepStatus(d) {
     unsignedDocs,
     unackedPolicies,
   };
-  st.ready = st.personal && st.education && st.deposit && st.sign;
+  st.ready = steps().every((s) => s.optional || s.id === 'review' || st[s.id]);
   return st;
 }
 
@@ -112,7 +124,7 @@ async function employeeDashboard(view) {
   ]);
   const st = stepStatus(d);
   const trainingDue = requiredTrainingGaps(modules, training, state.profile);
-  const required = ['personal', 'education', 'deposit', 'sign'];
+  const required = steps().filter((s) => !s.optional && s.id !== 'review').map((s) => s.id);
   const done = required.filter((k) => st[k]).length;
   const status = d.emp?.status;
   const expiring = d.creds
@@ -161,15 +173,15 @@ async function employeeDashboard(view) {
 VIEWS.onboarding = async (view, step) => {
   const d = await loadOnboarding();
   const st = stepStatus(d);
-  if (!STEPS.some((s) => s.id === step)) {
-    step = st.review ? 'review' : (STEPS.find((s) => !s.optional && !st[s.id])?.id || 'review');
+  if (!steps().some((s) => s.id === step)) {
+    step = st.review ? 'review' : (steps().find((s) => !s.optional && !st[s.id])?.id || 'review');
   }
 
   view.innerHTML = `
     ${pageHead('My onboarding', `Welcome to ${esc(companyName(state.companyId))}. Your progress saves as you go.`)}
     ${statusNotice(d.emp)}
     <div class="onboarding">
-      <ol class="stepper">${STEPS.map((s, i) => `
+      <ol class="stepper">${steps().map((s, i) => `
         <li class="${s.id === step ? 'current' : ''} ${st[s.id] ? 'done' : ''}">
           <a href="#/onboarding/${s.id}"><span class="dot">${st[s.id] ? '✓' : i + 1}</span>
             <span>${esc(s.label)}${s.optional ? ' <span class="opt">optional</span>' : ''}</span></a>
@@ -200,11 +212,13 @@ function goStep(id) {
 }
 
 function nextStep(id) {
-  return STEPS[STEPS.findIndex((s) => s.id === id) + 1]?.id || 'review';
+  const list = steps();
+  return list[list.findIndex((s) => s.id === id) + 1]?.id || 'review';
 }
 
 function prevStep(id) {
-  return STEPS[STEPS.findIndex((s) => s.id === id) - 1]?.id;
+  const list = steps();
+  return list[list.findIndex((s) => s.id === id) - 1]?.id;
 }
 
 function stepActions(id, { continueLabel = 'Save & continue', submit = true, disabled = false } = {}) {
@@ -272,7 +286,7 @@ STEP_VIEWS.personal = (el, d) => {
     busy(ev.target, async () => {
       await saveEmp(formData(ev.target));
       toast('Saved.');
-      goStep('education');
+      goStep(nextStep('personal'));
     });
   });
 };
@@ -311,7 +325,7 @@ STEP_VIEWS.education = (el, d) => {
     busy(ev.target, async () => {
       await saveEmp(formData(ev.target));
       toast('Saved.');
-      goStep('credentials');
+      goStep(nextStep('education'));
     });
   });
 };
@@ -329,7 +343,7 @@ STEP_VIEWS.credentials = (el, d) => {
   credentialManager(el.querySelector('#creds'), d.creds, {
     kinds: ['license', 'certification', 'id', 'other'], addLabel: '+ Add a license or certification', onChange: renderRoute,
   });
-  on(el, '#cont', 'submit', (ev) => { ev.preventDefault(); goStep('deposit'); });
+  on(el, '#cont', 'submit', (ev) => { ev.preventDefault(); goStep(nextStep('credentials')); });
 };
 
 STEP_VIEWS.deposit = (el, d, st) => {
@@ -414,7 +428,7 @@ STEP_VIEWS.deposit = (el, d, st) => {
     });
   });
 
-  on(el, '#cont', 'submit', (ev) => { ev.preventDefault(); goStep('sign'); });
+  on(el, '#cont', 'submit', (ev) => { ev.preventDefault(); goStep(nextStep('deposit')); });
 };
 
 // ABA routing number checksum, so typos are caught before saving.
@@ -428,7 +442,7 @@ STEP_VIEWS.sign = (el, d, st) => {
   el.innerHTML = `<div id="signables"></div>
     <form id="cont">${stepActions('sign', { continueLabel: 'Continue', disabled: !st.sign })}</form>`;
   renderSignables(el.querySelector('#signables'), d, renderRoute);
-  on(el, '#cont', 'submit', (ev) => { ev.preventDefault(); goStep('review'); });
+  on(el, '#cont', 'submit', (ev) => { ev.preventDefault(); goStep(nextStep('sign')); });
 };
 
 STEP_VIEWS.review = (el, d, st) => {
@@ -446,7 +460,9 @@ STEP_VIEWS.review = (el, d, st) => {
         ${row('education', 'Education', esc(e.education_level || ''))}
         <li><span>${d.creds.length ? '✅' : '➖'} <strong>Licenses &amp; certifications</strong>
           <span class="muted small">${d.creds.length} on file</span></span><a href="#/onboarding/credentials">Edit</a></li>
+        ${row('job', 'Job description', st.job ? `Signed: ${esc(d.position.title)}` : d.position ? 'Not signed yet' : 'Position not assigned yet')}
         ${row('deposit', 'Direct deposit & SSN', e.bank_on_file && e.ssn_on_file ? 'On file' : 'Missing')}
+        ${currentCompany().drug_screen_required ? row('drug', 'Drug screening', st.drug ? 'Scheduled' : 'Not scheduled yet') : ''}
         ${row('sign', 'Documents & policies', st.sign ? 'All signed' : `${st.unsignedDocs.length + st.unackedPolicies.length} still to sign`)}
       </ul>
     </section>

@@ -26,6 +26,13 @@ A secure portal at **https://bchrfiles.com** for BC HR & Compliance and its clie
 
 Every attachment version is kept and every change is logged (who, what, when). Managers can archive superseded items but cannot delete; only BC HR admins can.
 
+**Positions and job descriptions:**
+- Each agency has its own positions with full job descriptions, managed on the **Positions** page.
+- You choose a person's position when you create their login, or later on their file.
+- During onboarding the employee reads and signs their job description by typed name; their supervisor then countersigns. The signed copy keeps the exact text that was signed and can be printed or saved as PDF.
+
+**Drug screening:** turn it on per agency under **Client companies → Drug screening settings**, with the scheduling link, service code, case number and who pays. Employees at that agency get a "Drug screening" onboarding step to book and record their appointment; managers and BC HR record the result and can attach the result document.
+
 **Training:**
 - Modules with lesson text, an optional YouTube / Vimeo video and PDF, and a multiple-choice quiz with a pass mark. A module can be for every agency (BC HR admins) or one agency (that agency's managers too).
 - Employees take modules in the portal. Quizzes are graded in the database, so answers can't be read from the browser. Passing records the score, date and renewal date, with a printable certificate.
@@ -40,13 +47,14 @@ Every attachment version is kept and every change is logged (who, what, when). M
 
 | File | What it is |
 |---|---|
-| `index.html`, `app.js`, `onboarding.js`, `compliance.js`, `training.js`, `people.js`, `styles.css` | The portal |
+| `index.html`, `app.js`, `onboarding.js`, `positions.js`, `compliance.js`, `training.js`, `people.js`, `styles.css` | The portal |
 | `config.js` | Supabase project URL and publishable key |
 | `supabase/schema.sql` | Step 1 database setup |
 | `supabase/002_onboarding.sql` | Step 2 database setup (roles, onboarding, encryption) |
 | `supabase/003_agency_compliance.sql` | Step 3 database setup (agency compliance) |
 | `supabase/004_training.sql` | Step 4 database setup (training) |
 | `supabase/005_training_library.sql` | Optional: 17 starter training modules with draft lessons and quizzes |
+| `supabase/006_positions_drug_screening.sql` | Step 6: positions, job description sign-off and drug screening |
 | `supabase/functions/invite-user/index.ts` | Server function that creates logins |
 | `brand/` | Logo files |
 
@@ -70,7 +78,9 @@ Every attachment version is kept and every change is logged (who, what, when). M
 
 ## Upgrade: employee onboarding (run once)
 
-1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`, then `supabase/004_training.sql`. Run them in that order, each once. Optionally run `supabase/005_training_library.sql` afterwards to add the starter training library (created inactive for review).
+1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`, then `supabase/004_training.sql`. Run them in that order, each once. Optionally run `supabase/005_training_library.sql` afterwards to add the starter training library (created inactive for review). Then run `supabase/006_positions_drug_screening.sql`.
+
+**This repository is public.** Keep client-specific data (job descriptions, addresses, codes) out of it: load it through the portal, or run a private SQL file in Supabase without committing it.
 2. **Create-login function** (required for the **Users** page).
    - Go to **Edge Functions → Deploy a new function → Via Editor**.
    - Name it exactly `invite-user`, replace the sample code with `supabase/functions/invite-user/index.ts`, and click **Deploy**.
