@@ -291,9 +291,8 @@ async function employeeDetail(view, id) {
       toast('Record a negative drug screening result before approving onboarding.', 'error');
       return;
     }
-    if (action === 'approved' && agency.health_screen_required
-        && !(healthCleared(healthRows, 'tb') && healthCleared(healthRows, 'measles'))) {
-      toast('Record a negative TB result and measles immunity (within 12 months) before approving onboarding.', 'error');
+    if (action === 'approved' && agency.health_screen_required && !healthAllCleared(healthRows)) {
+      toast('Record a negative TB result and measles and rubella immunity (within 12 months) before approving onboarding.', 'error');
       return;
     }
     busy(ev.target, async () => {

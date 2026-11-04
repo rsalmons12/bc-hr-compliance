@@ -893,11 +893,11 @@ VIEWS.companies = async (view) => {
           <div class="company-head">
             <span><strong>${esc(c.name)}</strong> <span class="muted small">· added ${fmtDate(c.created_at)}</span>
               ${c.drug_screen_url ? badge('Drug screening link set', 'info') : badge('Drug screening link missing', 'warn')}
-              ${c.health_screen_required ? badge('TB & measles required', 'info') : ''}</span>
+              ${c.health_screen_required ? badge('TB, measles & rubella required', 'info') : ''}</span>
             <button class="btn btn-sm btn-danger" data-delete="${c.id}">Delete</button>
           </div>
           <details><summary class="link">Drug screening settings</summary>${screeningSettingsForm(c)}</details>
-          <details><summary class="link">TB &amp; measles settings</summary>${healthSettingsForm(c)}</details>
+          <details><summary class="link">TB, measles &amp; rubella settings</summary>${healthSettingsForm(c)}</details>
         </li>`).join('')}</ul>`
         : '<p class="muted">No client companies yet.</p>'}
     </section>`;

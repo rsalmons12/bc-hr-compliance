@@ -33,7 +33,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 
 **Drug screening:** turn it on per agency under **Client companies → Drug screening settings**, with the scheduling link, service code, case number and who pays. Employees at that agency get a "Drug screening" onboarding step to book and record their appointment; managers and BC HR record the result and can attach the result document.
 
-**TB and measles screening:** turn it on per agency (for New Jersey facilities) under **Client companies → TB & measles settings**. Employees either upload a TB / measles result from the past 12 months or book a test the agency pays for (default link: CVS MinuteClinic). Staff record the result (TB negative, measles immune), valid for 12 months; onboarding cannot be approved until both are cleared.
+**TB, measles and rubella screening:** turn it on per agency (for New Jersey facilities) under **Client companies → TB, measles & rubella settings**. Employees either upload a result from the past 12 months or book a test the agency pays for (CVS MinuteClinic TB testing, and titer/immunity testing for measles and rubella). Staff record the results (TB negative, measles and rubella immune), valid for 12 months; onboarding cannot be approved until all three are cleared.
 
 **Training:**
 - Modules with lesson text, an optional YouTube / Vimeo video and PDF, and a multiple-choice quiz with a pass mark. A module can be for every agency (BC HR admins) or one agency (that agency's managers too).
@@ -58,6 +58,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 | `supabase/005_training_library.sql` | Optional: 17 starter training modules with draft lessons and quizzes |
 | `supabase/006_positions_drug_screening.sql` | Step 6: positions, job description sign-off and drug screening |
 | `supabase/007_health_screening.sql` | Step 7: TB and measles screening |
+| `supabase/008_rubella.sql` | Step 8: adds rubella |
 | `supabase/functions/invite-user/index.ts` | Server function that creates logins |
 | `brand/` | Logo files |
 
@@ -81,7 +82,7 @@ Every attachment version is kept and every change is logged (who, what, when). M
 
 ## Upgrade: employee onboarding (run once)
 
-1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`, then `supabase/004_training.sql`. Run them in that order, each once. Optionally run `supabase/005_training_library.sql` afterwards to add the starter training library (created inactive for review). Then run `supabase/006_positions_drug_screening.sql`, then `supabase/007_health_screening.sql`.
+1. **Database.** In **SQL Editor → New query**, paste all of `supabase/002_onboarding.sql` and click **Run**. Existing client users become **managers**. Then do the same with `supabase/003_agency_compliance.sql`, then `supabase/004_training.sql`. Run them in that order, each once. Optionally run `supabase/005_training_library.sql` afterwards to add the starter training library (created inactive for review). Then run `supabase/006_positions_drug_screening.sql`, then `supabase/007_health_screening.sql`, then `supabase/008_rubella.sql`.
 
 **This repository is public.** Keep client-specific data (job descriptions, addresses, codes) out of it: load it through the portal, or run a private SQL file in Supabase without committing it.
 2. **Create-login function** (required for the **Users** page).

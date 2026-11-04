@@ -1,10 +1,28 @@
-// TB and measles screening (per agency, e.g. New Jersey facilities): employees upload a
-// result from the past 12 months or book a test the agency pays for; staff record results.
+// TB, measles and rubella screening (per agency, e.g. New Jersey facilities): employees
+// upload a result from the past 12 months or book a test the agency pays for; staff
+// record results.
+
+const DEFAULT_HEALTH_URL = 'https://www.cvs.com/minuteclinic/services/tb-testing';
+const TITER_URL = 'https://www.cvs.com/minuteclinic/services/titers-and-immunity-testing';
 
 const HEALTH_SCREENINGS = {
-  tb: { label: 'TB test', cleared: 'negative', types: ['TB blood test (IGRA / QuantiFERON)', 'TB skin test (PPD)', 'Chest X-ray'] },
-  measles: { label: 'Measles test', cleared: 'immune', types: ['Measles titer (IgG)', 'MMR vaccination record (2 doses)'] },
+  tb: {
+    label: 'TB test', cleared: 'negative',
+    types: ['TB blood test (IGRA / QuantiFERON)', 'TB skin test (PPD)', 'Chest X-ray'],
+    url: (company) => company.health_screen_url || DEFAULT_HEALTH_URL,
+  },
+  measles: {
+    label: 'Measles test', cleared: 'immune',
+    types: ['Measles titer (IgG)', 'MMR vaccination record (2 doses)'],
+    url: () => TITER_URL,
+  },
+  rubella: {
+    label: 'Rubella test', cleared: 'immune',
+    types: ['Rubella titer (IgG)', 'MMR vaccination record (2 doses)'],
+    url: () => TITER_URL,
+  },
 };
+const HEALTH_KINDS = Object.keys(HEALTH_SCREENINGS);
 const HEALTH_RESULTS = {
   pending: 'Pending', negative: 'Negative', positive: 'Positive',
   immune: 'Immune', not_immune: 'Not immune', cancelled: 'Cancelled',
@@ -13,21 +31,21 @@ const healthBadge = (r) => badge(HEALTH_RESULTS[r], {
   pending: 'warn', negative: 'ok', immune: 'ok', positive: 'danger', not_immune: 'danger', cancelled: 'neutral',
 }[r]);
 
-const DEFAULT_HEALTH_URL = 'https://www.cvs.com/minuteclinic/services/tb-testing';
-
 // The newest record for each screening.
 function latestHealth(rows, kind) {
   return rows.filter((r) => r.screening === kind)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] || null;
 }
 
-// Cleared = TB negative / measles immune and still within its 12 months.
+// Cleared = TB negative / measles and rubella immune, and still within its 12 months.
 function healthCleared(rows, kind) {
   return rows.some((r) => r.screening === kind && r.result === HEALTH_SCREENINGS[kind].cleared
     && (!r.valid_until || r.valid_until >= today()));
 }
 
-const healthStepDone = (rows) => Object.keys(HEALTH_SCREENINGS).every((kind) => {
+const healthAllCleared = (rows) => HEALTH_KINDS.every((kind) => healthCleared(rows, kind));
+
+const healthStepDone = (rows) => HEALTH_KINDS.every((kind) => {
   const r = latestHealth(rows, kind);
   return r && (r.appointment_date || r.source === 'prior_result' || r.result !== 'pending');
 });
@@ -55,6 +73,7 @@ STEP_VIEWS.health = (el, d, st) => {
         <div class="choice-row">
           <button type="button" class="btn btn-ghost btn-sm" data-show-form="${kind}-prior">I was tested in the past 12 months</button>
           <button type="button" class="btn btn-ghost btn-sm" data-show-form="${kind}-book">I need to book a test</button>
+          <a class="btn btn-sm" href="${esc(s.url(company))}" target="_blank" rel="noopener">Book at MinuteClinic ↗</a>
         </div>
         <form class="stack" data-health="${kind}" data-source="prior_result" id="${kind}-prior" hidden>
           <div class="row">
@@ -76,15 +95,14 @@ STEP_VIEWS.health = (el, d, st) => {
 
   el.innerHTML = `
     <section class="card">
-      <h2>TB and measles screening</h2>
+      <h2>TB, measles and rubella screening</h2>
       <div class="screening-box">
-        <p>${esc(company.health_screen_instructions || 'A TB test and a measles test are required before you start. If you were tested in the past 12 months, upload your result. Otherwise, book a test; most people go to a local MinuteClinic.')}</p>
+        <p>${esc(company.health_screen_instructions || 'A TB test and measles and rubella tests are required before you start. If you were tested in the past 12 months, upload your result. Otherwise, book a test; most people go to a local MinuteClinic.')}</p>
         <dl class="meta"><dt>Cost</dt><dd>${company.health_screen_paid_by_facility === false ? 'See instructions' : 'Paid by the agency'}</dd></dl>
-        <a class="btn" href="${esc(company.health_screen_url || DEFAULT_HEALTH_URL)}" target="_blank" rel="noopener">Find a clinic and book ↗</a>
+        <p class="small">Measles and rubella are usually checked together with one titer (immunity) blood test.</p>
       </div>
     </section>
-    ${card('tb')}
-    ${card('measles')}
+    ${HEALTH_KINDS.map(card).join('')}
     <form id="cont">${stepActions('health', { continueLabel: 'Continue', disabled: !st.health })}</form>`;
 
   on(el, '[data-show-form]', 'click', (ev) => {
@@ -130,10 +148,9 @@ STEP_VIEWS.health = (el, d, st) => {
 // ---------------------------------------------------------------------------
 
 function healthSectionHtml(rows) {
-  const cleared = Object.keys(HEALTH_SCREENINGS).every((k) => healthCleared(rows, k));
   return `
     <section class="card">
-      <h2>TB &amp; measles ${cleared ? badge('Cleared', 'ok') : badge('Required before approval', 'warn')}</h2>
+      <h2>TB, measles &amp; rubella ${healthAllCleared(rows) ? badge('Cleared', 'ok') : badge('Required before approval', 'warn')}</h2>
       ${rows.length ? `<div class="table-wrap"><table>
         <thead><tr><th>Screening</th><th>Test / appointment</th><th>Result</th><th></th></tr></thead>
         <tbody>${rows.map((r) => `
@@ -151,27 +168,36 @@ function healthSectionHtml(rows) {
           </tr>`).join('')}
         </tbody></table></div>` : '<p class="muted">Nothing booked or uploaded yet.</p>'}
       <details class="cred-form" id="health-form-wrap">
-        <summary class="btn btn-ghost">+ Add a TB or measles record</summary>
+        <summary class="btn btn-ghost">+ Add a TB, measles or rubella record</summary>
         ${healthForm({})}
       </details>
     </section>`;
 }
 
+// TB reads negative / positive; measles and rubella read immune / not immune.
+function resultChoices(kind) {
+  const keys = kind === 'tb'
+    ? ['pending', 'negative', 'positive', 'cancelled']
+    : ['pending', 'immune', 'not_immune', 'cancelled'];
+  return Object.fromEntries(keys.map((k) => [k, HEALTH_RESULTS[k]]));
+}
+
 function healthForm(r) {
-  const types = [...HEALTH_SCREENINGS.tb.types, ...HEALTH_SCREENINGS.measles.types];
+  const types = [...new Set(HEALTH_KINDS.flatMap((k) => HEALTH_SCREENINGS[k].types))];
+  const kinds = Object.fromEntries(HEALTH_KINDS.map((k) => [k, HEALTH_SCREENINGS[k].label]));
   return `
     <form class="stack" id="health-form" data-id="${r.id || ''}">
       <div class="row">
-        <label>Screening<select name="screening">${options({ tb: 'TB test', measles: 'Measles test' }, r.screening || 'tb')}</select></label>
+        <label>Screening<select name="screening">${options(kinds, r.screening || 'tb')}</select></label>
         <label>Type of test<select name="test_type"><option value="">—</option>${types.map((t) => `<option${t === r.test_type ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
         ${input('Test date', 'test_date', r.test_date, 'type="date"')}
       </div>
       <div class="row">
-        <label>Result<select name="result">${options(HEALTH_RESULTS, r.result || 'pending')}</select></label>
+        <label>Result<select name="result">${options(resultChoices(r.screening || 'tb'), r.result || 'pending')}</select></label>
         ${input('Valid until', 'valid_until', r.valid_until, 'type="date"')}
         <label>Result document<input type="file" name="file" accept="application/pdf,image/*"></label>
       </div>
-      <p class="muted small">Leave "Valid until" blank and it is set to 12 months after the test date when the result is negative or immune.</p>
+      <p class="muted small">Leave "Valid until" blank and it is set to 12 months after the test date when the result is negative (TB) or immune (measles, rubella).</p>
       <label>Notes (staff only)<textarea name="notes" rows="2" placeholder="e.g. positive TB: chest X-ray referral">${esc(r.notes)}</textarea></label>
       <button type="submit" class="btn">Save</button>
     </form>`;
@@ -198,6 +224,10 @@ function bindHealthSection(view, p, rows) {
     });
   });
   bindForm();
+  const bindResultChoices = () => on(view, '#health-form [name=screening]', 'change', (ev) => {
+    view.querySelector('#health-form [name=result]').innerHTML = options(resultChoices(ev.target.value), 'pending');
+  });
+  bindResultChoices();
 
   on(view, '[data-health-edit]', 'click', (ev) => {
     const r = rows.find((x) => x.id === ev.currentTarget.dataset.healthEdit);
@@ -206,6 +236,7 @@ function bindHealthSection(view, p, rows) {
     wrap.querySelector('#health-form').outerHTML = healthForm(r);
     wrap.open = true;
     bindForm();
+    bindResultChoices();
     wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   on(view, '[data-health-file]', 'click', (ev) => {
@@ -222,15 +253,16 @@ function healthSettingsForm(c) {
   return `
     <form class="stack health-settings" data-company="${c.id}">
       <label class="check"><input type="checkbox" name="health_screen_required" ${c.health_screen_required ? 'checked' : ''}>
-        <span>Require TB and measles screening during onboarding (e.g. New Jersey facilities)</span></label>
+        <span>Require TB, measles and rubella screening during onboarding (e.g. New Jersey facilities)</span></label>
       <label>Instructions for employees<textarea name="health_screen_instructions" rows="2"
         placeholder="A TB test and a measles test are required before you start…">${esc(c.health_screen_instructions)}</textarea></label>
       <div class="row">
-        ${input('Booking link', 'health_screen_url', c.health_screen_url, `type="url" placeholder="${DEFAULT_HEALTH_URL}"`)}
+        ${input('TB test booking link', 'health_screen_url', c.health_screen_url, `type="url" placeholder="${DEFAULT_HEALTH_URL}"`)}
       </div>
       <label class="check"><input type="checkbox" name="health_screen_paid_by_facility" ${c.health_screen_paid_by_facility !== false ? 'checked' : ''}>
         <span>The agency covers the cost</span></label>
-      <button type="submit" class="btn btn-sm">Save TB &amp; measles settings</button>
+      <p class="muted small">Measles and rubella use the MinuteClinic titer (immunity) testing page.</p>
+      <button type="submit" class="btn btn-sm">Save TB, measles &amp; rubella settings</button>
     </form>`;
 }
 
@@ -246,7 +278,7 @@ function bindHealthSettings(view) {
         health_screen_url: f.health_screen_url,
       }).eq('id', ev.target.dataset.company));
       await reloadCompanies();
-      toast('TB & measles settings saved.');
+      toast('TB, measles & rubella settings saved.');
     });
   });
 }

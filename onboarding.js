@@ -53,7 +53,7 @@ const ALL_STEPS = [
   { id: 'credentials', label: 'Licenses & certifications', optional: true },
   { id: 'deposit', label: 'Direct deposit & SSN' },
   { id: 'drug', label: 'Drug screening' },
-  { id: 'health', label: 'TB & measles', onlyIf: () => !!currentCompany().health_screen_required },
+  { id: 'health', label: 'TB, measles & rubella', onlyIf: () => !!currentCompany().health_screen_required },
   { id: 'sign', label: 'Sign documents' },
   { id: 'review', label: 'Review & submit' },
 ];
@@ -466,7 +466,7 @@ STEP_VIEWS.review = (el, d, st) => {
         ${row('job', 'Job description', st.job ? `Signed: ${esc(d.position.title)}` : d.position ? 'Not signed yet' : 'Position not assigned yet')}
         ${row('deposit', 'Direct deposit & SSN', e.bank_on_file && e.ssn_on_file ? 'On file' : 'Missing')}
         ${row('drug', 'Drug screening', st.drug ? 'Scheduled' : 'Not scheduled yet')}
-        ${currentCompany().health_screen_required ? row('health', 'TB & measles', st.health ? 'Booked or uploaded' : 'Not done yet') : ''}
+        ${currentCompany().health_screen_required ? row('health', 'TB, measles & rubella', st.health ? 'Booked or uploaded' : 'Not done yet') : ''}
         ${row('sign', 'Documents & policies', st.sign ? 'All signed' : `${st.unsignedDocs.length + st.unackedPolicies.length} still to sign`)}
       </ul>
     </section>
