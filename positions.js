@@ -252,6 +252,10 @@ STEP_VIEWS.job = (el, d, st) => {
 };
 
 function screeningInstructions(company) {
+  if (!company.drug_screen_url && !company.drug_screen_instructions) {
+    return `<div class="screening-box"><p>Drug screening is required for all employees. Your manager or BC HR &amp; Compliance
+      will tell you where to go. Once you have an appointment, enter it below.</p></div>`;
+  }
   return `
     <div class="screening-box">
       ${company.drug_screen_instructions ? `<p>${esc(company.drug_screen_instructions)}</p>` : ''}
@@ -337,7 +341,7 @@ function positionSectionHtml(file, data) {
 function drugSectionHtml(company, data) {
   return `
     <section class="card">
-      <h2>Drug screening ${company.drug_screen_required ? '' : '<span class="muted small">· not required at this agency</span>'}</h2>
+      <h2>Drug screening ${data.screens.some((s) => s.result === 'negative') ? badge('Cleared', 'ok') : badge('Required before approval', 'warn')}</h2>
       ${data.screens.length ? `<div class="table-wrap"><table>
         <thead><tr><th>Type</th><th>Appointment</th><th>Result</th><th></th></tr></thead>
         <tbody>${data.screens.map((s) => `
@@ -434,8 +438,8 @@ function bindPositionAndScreening(view, p, file, data) {
 function screeningSettingsForm(c) {
   return `
     <form class="stack screening-settings" data-company="${c.id}">
-      <label class="check"><input type="checkbox" name="drug_screen_required" ${c.drug_screen_required ? 'checked' : ''}>
-        <span>Employees must complete drug screening during onboarding</span></label>
+      <p class="muted small">Drug screening is a required onboarding step for every employee. Add where and how this agency's
+        employees schedule it.</p>
       <label>Instructions for employees<textarea name="drug_screen_instructions" rows="2">${esc(c.drug_screen_instructions)}</textarea></label>
       <div class="row">
         ${input('Scheduling link', 'drug_screen_url', c.drug_screen_url, 'type="url" placeholder="https://…"')}
@@ -453,7 +457,6 @@ function bindScreeningSettings(view) {
     ev.preventDefault();
     const f = nullify(formData(ev.target));
     const row = {
-      drug_screen_required: !!f.drug_screen_required,
       drug_screen_paid_by_facility: !!f.drug_screen_paid_by_facility,
       drug_screen_instructions: f.drug_screen_instructions,
       drug_screen_url: f.drug_screen_url,

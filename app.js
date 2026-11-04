@@ -892,7 +892,7 @@ VIEWS.companies = async (view) => {
         <li class="company-row">
           <div class="company-head">
             <span><strong>${esc(c.name)}</strong> <span class="muted small">· added ${fmtDate(c.created_at)}</span>
-              ${c.drug_screen_required ? badge('Drug screening required', 'info') : ''}</span>
+              ${c.drug_screen_url ? badge('Drug screening link set', 'info') : ''}</span>
             <button class="btn btn-sm btn-danger" data-delete="${c.id}">Delete</button>
           </div>
           <details><summary class="link">Drug screening settings</summary>${screeningSettingsForm(c)}</details>

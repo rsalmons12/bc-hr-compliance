@@ -175,7 +175,7 @@ async function employeeDetail(view, id) {
     </form>
 
     ${positionSectionHtml(file, jobAndScreening)}
-    ${agency.drug_screen_required || jobAndScreening.screens.length ? drugSectionHtml(agency, jobAndScreening) : ''}
+    ${drugSectionHtml(agency, jobAndScreening)}
 
     <div class="grid2">
       <section class="card">
@@ -279,6 +279,11 @@ async function employeeDetail(view, id) {
     const f = nullify(formData(ev.target));
     if (action === 'changes_requested' && !f.review_notes) {
       toast('Add a note telling the employee what to change.', 'error');
+      return;
+    }
+    // Drug screening is mandatory: a negative result must be on file before approval.
+    if (action === 'approved' && !jobAndScreening.screens.some((s) => s.result === 'negative')) {
+      toast('Record a negative drug screening result before approving onboarding.', 'error');
       return;
     }
     busy(ev.target, async () => {

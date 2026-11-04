@@ -52,7 +52,7 @@ const ALL_STEPS = [
   { id: 'education', label: 'Education' },
   { id: 'credentials', label: 'Licenses & certifications', optional: true },
   { id: 'deposit', label: 'Direct deposit & SSN' },
-  { id: 'drug', label: 'Drug screening', onlyIf: () => !!currentCompany().drug_screen_required },
+  { id: 'drug', label: 'Drug screening' },
   { id: 'sign', label: 'Sign documents' },
   { id: 'review', label: 'Review & submit' },
 ];
@@ -462,7 +462,7 @@ STEP_VIEWS.review = (el, d, st) => {
           <span class="muted small">${d.creds.length} on file</span></span><a href="#/onboarding/credentials">Edit</a></li>
         ${row('job', 'Job description', st.job ? `Signed: ${esc(d.position.title)}` : d.position ? 'Not signed yet' : 'Position not assigned yet')}
         ${row('deposit', 'Direct deposit & SSN', e.bank_on_file && e.ssn_on_file ? 'On file' : 'Missing')}
-        ${currentCompany().drug_screen_required ? row('drug', 'Drug screening', st.drug ? 'Scheduled' : 'Not scheduled yet') : ''}
+        ${row('drug', 'Drug screening', st.drug ? 'Scheduled' : 'Not scheduled yet')}
         ${row('sign', 'Documents & policies', st.sign ? 'All signed' : `${st.unsignedDocs.length + st.unackedPolicies.length} still to sign`)}
       </ul>
     </section>
